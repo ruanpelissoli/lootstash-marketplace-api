@@ -16,25 +16,40 @@ func NewInvalidator(redis *RedisClient) *Invalidator {
 
 // InvalidateProfile removes a specific profile from cache
 func (i *Invalidator) InvalidateProfile(ctx context.Context, id string) error {
+	if i == nil || i.redis == nil {
+		return nil
+	}
 	return i.redis.Del(ctx, ProfileKey(id))
 }
 
 // InvalidateListing removes a specific listing from cache
 func (i *Invalidator) InvalidateListing(ctx context.Context, id string) error {
+	if i == nil || i.redis == nil {
+		return nil
+	}
 	return i.redis.Del(ctx, ListingKey(id))
 }
 
 // InvalidateNotificationCount removes notification count from cache
 func (i *Invalidator) InvalidateNotificationCount(ctx context.Context, userID string) error {
+	if i == nil || i.redis == nil {
+		return nil
+	}
 	return i.redis.Del(ctx, NotificationCountKey(userID))
 }
 
 // InvalidateDeclineReasons removes decline reasons from cache
 func (i *Invalidator) InvalidateDeclineReasons(ctx context.Context) error {
+	if i == nil || i.redis == nil {
+		return nil
+	}
 	return i.redis.Del(ctx, DeclineReasonsKey())
 }
 
 // InvalidateAllListings removes all listing-related cache entries
 func (i *Invalidator) InvalidateAllListings(ctx context.Context) error {
+	if i == nil || i.redis == nil {
+		return nil
+	}
 	return i.redis.DeleteByPattern(ctx, ListingPattern())
 }

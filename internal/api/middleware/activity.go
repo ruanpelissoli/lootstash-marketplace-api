@@ -23,6 +23,7 @@ func activityKey(userID string) string {
 
 // ActivityTracker creates middleware that updates user's last_active_at timestamp
 // It throttles updates to once per minute to avoid excessive database writes
+// If Redis is unavailable, updates happen on every request (no throttling)
 func ActivityTracker(profileRepo repository.ProfileRepository, redis *cache.RedisClient) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// Get user ID from context (set by auth middleware)
@@ -33,11 +34,14 @@ func ActivityTracker(profileRepo repository.ProfileRepository, redis *cache.Redi
 		}
 
 		// Check if we've already updated recently (throttle)
-		key := activityKey(userID)
-		exists, err := redis.Exists(c.Context(), key)
-		if err == nil && exists {
-			// Already updated within throttle period, skip
-			return c.Next()
+		// If Redis is unavailable, skip throttle check (allow update)
+		if redis != nil && redis.IsAvailable() {
+			key := activityKey(userID)
+			exists, err := redis.Exists(c.Context(), key)
+			if err == nil && exists {
+				// Already updated within throttle period, skip
+				return c.Next()
+			}
 		}
 
 		// Update last_active_at in database (async to not block request)
@@ -51,8 +55,10 @@ func ActivityTracker(profileRepo repository.ProfileRepository, redis *cache.Redi
 				return
 			}
 
-			// Set throttle key in Redis
-			_ = redis.Set(ctx, key, "1", activityThrottleTTL)
+			// Set throttle key in Redis (if available)
+			if redis != nil && redis.IsAvailable() {
+				_ = redis.Set(ctx, activityKey(userID), "1", activityThrottleTTL)
+			}
 		}()
 
 		return c.Next()

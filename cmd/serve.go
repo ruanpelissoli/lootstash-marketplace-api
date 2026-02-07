@@ -99,18 +99,19 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}()
 	log.Info("connected to database")
 
-	// Connect to Redis
+	// Connect to Redis (optional - app works without it)
 	log.Info("connecting to redis")
 	redisClient, err := cache.NewRedisClient(ctx, GetRedisURL())
 	if err != nil {
-		log.Error("failed to connect to redis", "error", err)
-		return err
+		log.Warn("redis unavailable, running without cache", "error", err)
+		redisClient = nil
+	} else {
+		defer func() {
+			log.Info("closing redis connection")
+			redisClient.Close()
+		}()
+		log.Info("connected to redis", "address", GetRedisURL())
 	}
-	defer func() {
-		log.Info("closing redis connection")
-		redisClient.Close()
-	}()
-	log.Info("connected to redis", "address", GetRedisURL())
 
 	// Initialize storage for avatars using S3 protocol
 	supabaseURL := GetSupabaseURL()

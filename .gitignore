@@ -1,0 +1,30 @@
+# Environment files
+.env
+.claude/
+.env.local
+.env.*.local
+
+# Binary
+lootstash-marketplace-api
+lootstash-marketplace-api.exe
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage.out
+coverage.html
+
+# Vendor (if not committed)
+# vendor/
+
+# Build output
+/bin/
+/dist/

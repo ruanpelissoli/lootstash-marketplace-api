@@ -62,6 +62,11 @@ type battleNetUserInfo struct {
 
 // GetAuthorizationURL generates an OAuth authorization URL and stores state in Redis
 func (s *BattleNetService) GetAuthorizationURL(ctx context.Context, userID string, region string) (string, error) {
+	// Redis is required for OAuth state management
+	if s.redis == nil || !s.redis.IsAvailable() {
+		return "", fmt.Errorf("Battle.net linking is temporarily unavailable")
+	}
+
 	// Default to US region if not specified
 	if region == "" {
 		region = "us"
@@ -95,6 +100,11 @@ func (s *BattleNetService) GetAuthorizationURL(ctx context.Context, userID strin
 
 // HandleCallback processes the OAuth callback and links the Battle.net account
 func (s *BattleNetService) HandleCallback(ctx context.Context, userID string, code string, state string) (*models.Profile, error) {
+	// Redis is required for OAuth state validation
+	if s.redis == nil || !s.redis.IsAvailable() {
+		return nil, fmt.Errorf("Battle.net linking is temporarily unavailable")
+	}
+
 	// Validate and consume state from Redis (one-time use)
 	stateKey := battleNetStatePrefix + state
 	stateData, err := s.redis.Get(ctx, stateKey)
