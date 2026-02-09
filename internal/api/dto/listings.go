@@ -7,14 +7,14 @@ import (
 
 // ListingCardResponse represents a listing in card/list view (lightweight)
 type ListingCardResponse struct {
-	ID          string           `json:"id"`
-	SellerID    string           `json:"sellerId"`
-	Seller      *ProfileResponse `json:"seller,omitempty"`
-	Name        string           `json:"name"`
-	ItemType    string           `json:"itemType"`
-	Rarity      string           `json:"rarity"`
-	ImageURL    string           `json:"imageUrl,omitempty"`
-	Stats       []ItemStat       `json:"stats,omitempty"`
+	ID            string           `json:"id"`
+	SellerID      string           `json:"sellerId"`
+	Seller        *ProfileResponse `json:"seller,omitempty"`
+	Name          string           `json:"name"`
+	ItemType      string           `json:"itemType"`
+	Rarity        string           `json:"rarity"`
+	ImageURL      string           `json:"imageUrl,omitempty"`
+	Stats         []ItemStat       `json:"stats,omitempty"`
 	CatalogItemID string           `json:"catalogItemId,omitempty"`
 	AskingFor     json.RawMessage  `json:"askingFor,omitempty"`
 	AskingPrice   string           `json:"askingPrice,omitempty"`
@@ -23,39 +23,41 @@ type ListingCardResponse struct {
 	Hardcore      bool             `json:"hardcore"`
 	Platform      string           `json:"platform"`
 	Region        string           `json:"region"`
+	SellerTimezone string          `json:"sellerTimezone,omitempty"`
 	Views         int              `json:"views"`
 	CreatedAt     time.Time        `json:"createdAt"`
 }
 
 // ListingResponse represents a listing with full details
 type ListingResponse struct {
-	ID           string           `json:"id"`
-	SellerID     string           `json:"sellerId"`
-	Seller       *ProfileResponse `json:"seller,omitempty"`
-	Name         string           `json:"name"`
-	ItemType     string           `json:"itemType"`
-	Rarity       string           `json:"rarity"`
-	ImageURL     string           `json:"imageUrl,omitempty"`
-	Category     string           `json:"category"`
-	Stats        []ItemStat       `json:"stats,omitempty"`
-	Suffixes     json.RawMessage  `json:"suffixes,omitempty"`
-	Runes        []RuneInfo       `json:"runes,omitempty"`
-	RuneOrder    string           `json:"runeOrder,omitempty"`
-	BaseItemCode  string           `json:"baseItemCode,omitempty"`
-	BaseItemName  string           `json:"baseItemName,omitempty"`
-	CatalogItemID string           `json:"catalogItemId,omitempty"`
-	AskingFor     json.RawMessage  `json:"askingFor,omitempty"`
-	AskingPrice   string           `json:"askingPrice,omitempty"`
-	Notes         string           `json:"notes,omitempty"`
-	Game         string           `json:"game"`
-	Ladder       bool             `json:"ladder"`
-	Hardcore     bool             `json:"hardcore"`
-	Platform     string           `json:"platform"`
-	Region       string           `json:"region"`
-	Status       string           `json:"status"`
-	Views        int              `json:"views"`
-	CreatedAt    time.Time        `json:"createdAt"`
-	ExpiresAt    time.Time        `json:"expiresAt,omitempty"`
+	ID             string           `json:"id"`
+	SellerID       string           `json:"sellerId"`
+	Seller         *ProfileResponse `json:"seller,omitempty"`
+	Name           string           `json:"name"`
+	ItemType       string           `json:"itemType"`
+	Rarity         string           `json:"rarity"`
+	ImageURL       string           `json:"imageUrl,omitempty"`
+	Category       string           `json:"category"`
+	Stats          []ItemStat       `json:"stats,omitempty"`
+	Suffixes       json.RawMessage  `json:"suffixes,omitempty"`
+	Runes          []RuneInfo       `json:"runes,omitempty"`
+	RuneOrder      string           `json:"runeOrder,omitempty"`
+	BaseItemCode   string           `json:"baseItemCode,omitempty"`
+	BaseItemName   string           `json:"baseItemName,omitempty"`
+	CatalogItemID  string           `json:"catalogItemId,omitempty"`
+	AskingFor      json.RawMessage  `json:"askingFor,omitempty"`
+	AskingPrice    string           `json:"askingPrice,omitempty"`
+	Notes          string           `json:"notes,omitempty"`
+	Game           string           `json:"game"`
+	Ladder         bool             `json:"ladder"`
+	Hardcore       bool             `json:"hardcore"`
+	Platform       string           `json:"platform"`
+	Region         string           `json:"region"`
+	SellerTimezone string           `json:"sellerTimezone,omitempty"`
+	Status         string           `json:"status"`
+	Views          int              `json:"views"`
+	CreatedAt      time.Time        `json:"createdAt"`
+	ExpiresAt      time.Time        `json:"expiresAt,omitempty"`
 }
 
 // ListingDetailResponse represents a listing with full details

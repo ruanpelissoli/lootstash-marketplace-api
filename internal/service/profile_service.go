@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/api/dto"
@@ -17,10 +19,11 @@ const profileCacheTTL = 1 * time.Hour
 
 // ProfileService handles profile business logic
 type ProfileService struct {
-	repo        repository.ProfileRepository
-	redis       *cache.RedisClient
-	invalidator *cache.Invalidator
-	storage     storage.Storage
+	repo            repository.ProfileRepository
+	transactionRepo repository.TransactionRepository
+	redis           *cache.RedisClient
+	invalidator     *cache.Invalidator
+	storage         storage.Storage
 }
 
 // NewProfileService creates a new profile service
@@ -31,6 +34,11 @@ func NewProfileService(repo repository.ProfileRepository, redis *cache.RedisClie
 		invalidator: cache.NewInvalidator(redis),
 		storage:     stor,
 	}
+}
+
+// SetTransactionRepository sets the transaction repository for sales queries
+func (s *ProfileService) SetTransactionRepository(repo repository.TransactionRepository) {
+	s.transactionRepo = repo
 }
 
 // GetByID retrieves a profile by ID with caching
@@ -73,6 +81,9 @@ func (s *ProfileService) Update(ctx context.Context, userID string, req *dto.Upd
 	if req.AvatarURL != nil {
 		profile.AvatarURL = req.AvatarURL
 	}
+	if req.Timezone != nil {
+		profile.Timezone = req.Timezone
+	}
 
 	if err := s.repo.Update(ctx, profile); err != nil {
 		return nil, err
@@ -97,6 +108,7 @@ func (s *ProfileService) ToResponse(profile *models.Profile) *dto.ProfileRespons
 		RatingCount:   profile.RatingCount,
 		IsPremium:     profile.IsPremium,
 		ProfileFlair:  profile.GetProfileFlair(),
+		Timezone:      profile.GetTimezone(),
 		CreatedAt:     profile.CreatedAt,
 	}
 }
@@ -154,4 +166,194 @@ func (s *ProfileService) UploadProfilePicture(ctx context.Context, userID string
 	_ = s.invalidator.InvalidateProfile(ctx, userID)
 
 	return avatarURL, nil
+}
+
+// GetSales retrieves completed sales for a seller
+func (s *ProfileService) GetSales(ctx context.Context, sellerID string, offset, limit int) (*dto.SalesResponse, error) {
+	if s.transactionRepo == nil {
+		return nil, fmt.Errorf("transaction repository not configured")
+	}
+
+	records, total, err := s.transactionRepo.GetSalesBySeller(ctx, sellerID, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	sales := make([]dto.SoldItem, 0, len(records))
+	for _, record := range records {
+		sale := s.saleRecordToDTO(record)
+		sales = append(sales, sale)
+	}
+
+	hasMore := offset+len(sales) < total
+
+	return &dto.SalesResponse{
+		Sales:   sales,
+		Total:   total,
+		HasMore: hasMore,
+	}, nil
+}
+
+// saleRecordToDTO converts a repository SaleRecord to a DTO SoldItem
+func (s *ProfileService) saleRecordToDTO(record repository.SaleRecord) dto.SoldItem {
+	// Parse completedAt
+	var completedAt time.Time
+	if t, ok := record.CompletedAt.(time.Time); ok {
+		completedAt = t
+	}
+
+	// Build item info
+	item := dto.SoldItemInfo{
+		Name:     record.ItemName,
+		ItemType: record.ItemType,
+		Rarity:   record.Rarity,
+	}
+	if record.ImageURL != nil {
+		item.ImageURL = *record.ImageURL
+	}
+	if record.BaseName != nil {
+		item.BaseName = *record.BaseName
+	}
+	item.Stats = s.transformSaleStats(record.Stats)
+
+	// Parse offered items (soldFor)
+	soldFor := s.transformOfferedItems(record.OfferedItems)
+
+	// Build buyer info
+	buyer := dto.SaleBuyerInfo{
+		ID:          record.BuyerID,
+		DisplayName: record.BuyerName,
+	}
+	if record.BuyerAvatar != nil {
+		buyer.AvatarURL = *record.BuyerAvatar
+	}
+
+	// Build review if present
+	var review *dto.SaleReview
+	if record.ReviewRating != nil {
+		var reviewedAt time.Time
+		if t, ok := record.ReviewedAt.(time.Time); ok {
+			reviewedAt = t
+		}
+		review = &dto.SaleReview{
+			Rating:    *record.ReviewRating,
+			CreatedAt: reviewedAt,
+		}
+		if record.ReviewComment != nil {
+			review.Comment = *record.ReviewComment
+		}
+	}
+
+	return dto.SoldItem{
+		ID:          record.TransactionID,
+		CompletedAt: completedAt,
+		Item:        item,
+		SoldFor:     soldFor,
+		Buyer:       buyer,
+		Review:      review,
+	}
+}
+
+// saleRawStat represents the raw stat format from the database
+type saleRawStat struct {
+	Code        string      `json:"code"`
+	Value       interface{} `json:"value,omitempty"`
+	DisplayText string      `json:"displayText,omitempty"`
+	IsVariable  bool        `json:"isVariable,omitempty"`
+}
+
+// transformSaleStats converts raw JSON stats to DTOs for sales
+func (s *ProfileService) transformSaleStats(rawStats []byte) []dto.SoldItemStat {
+	if len(rawStats) == 0 {
+		return nil
+	}
+
+	var stats []saleRawStat
+	if err := json.Unmarshal(rawStats, &stats); err != nil {
+		return nil
+	}
+
+	result := make([]dto.SoldItemStat, 0, len(stats))
+	for _, stat := range stats {
+		numericValue := extractSaleNumericValue(stat.Value)
+
+		displayText := stat.DisplayText
+		if displayText == "" {
+			if numericValue != nil {
+				displayText = fmt.Sprintf("%s: %d", stat.Code, *numericValue)
+			} else {
+				displayText = stat.Code
+			}
+		}
+
+		result = append(result, dto.SoldItemStat{
+			Code:        stat.Code,
+			Value:       numericValue,
+			DisplayText: displayText,
+			IsVariable:  stat.IsVariable,
+		})
+	}
+
+	return result
+}
+
+// extractSaleNumericValue extracts an integer from an interface{}
+func extractSaleNumericValue(val interface{}) *int {
+	if val == nil {
+		return nil
+	}
+
+	switch v := val.(type) {
+	case float64:
+		intVal := int(v)
+		return &intVal
+	case int:
+		return &v
+	case string:
+		re := regexp.MustCompile(`[+-]?\d+`)
+		matches := re.FindString(v)
+		if matches != "" {
+			if num, err := strconv.Atoi(matches); err == nil {
+				return &num
+			}
+		}
+	}
+
+	return nil
+}
+
+// offeredItem represents an item in the offered_items JSON
+type offeredItem struct {
+	Type     string `json:"type"`
+	Name     string `json:"name"`
+	Quantity int    `json:"quantity"`
+	ImageURL string `json:"imageUrl,omitempty"`
+}
+
+// transformOfferedItems converts raw JSON offered items to DTOs
+func (s *ProfileService) transformOfferedItems(rawItems []byte) []dto.SoldForItem {
+	if len(rawItems) == 0 {
+		return nil
+	}
+
+	var items []offeredItem
+	if err := json.Unmarshal(rawItems, &items); err != nil {
+		return nil
+	}
+
+	result := make([]dto.SoldForItem, 0, len(items))
+	for _, item := range items {
+		quantity := item.Quantity
+		if quantity == 0 {
+			quantity = 1
+		}
+		result = append(result, dto.SoldForItem{
+			Type:     item.Type,
+			Name:     item.Name,
+			Quantity: quantity,
+			ImageURL: item.ImageURL,
+		})
+	}
+
+	return result
 }

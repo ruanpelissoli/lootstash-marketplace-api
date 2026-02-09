@@ -142,6 +142,26 @@ type TransactionRepository interface {
 	GetByID(ctx context.Context, id string) (*models.Transaction, error)
 	GetByTradeID(ctx context.Context, tradeID string) (*models.Transaction, error)
 	GetTradeVolume(ctx context.Context, itemName string, days int) ([]TradeVolumePoint, error)
+	GetSalesBySeller(ctx context.Context, sellerID string, offset, limit int) ([]SaleRecord, int, error)
+}
+
+// SaleRecord represents a completed sale with all related data
+type SaleRecord struct {
+	TransactionID string
+	CompletedAt   interface{} // time.Time
+	ItemName      string
+	ItemType      string
+	Rarity        string
+	ImageURL      *string
+	BaseName      *string
+	Stats         []byte // json.RawMessage
+	OfferedItems  []byte // json.RawMessage
+	BuyerID       string
+	BuyerName     string
+	BuyerAvatar   *string
+	ReviewRating  *int
+	ReviewComment *string
+	ReviewedAt    interface{} // *time.Time
 }
 
 // TradeVolumePoint represents a single day's trade volume

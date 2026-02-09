@@ -14,6 +14,7 @@ type ProfileResponse struct {
 	RatingCount   int       `json:"ratingCount"`
 	IsPremium     bool      `json:"isPremium"`
 	ProfileFlair  string    `json:"profileFlair,omitempty"`
+	Timezone      string    `json:"timezone,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 }
 
@@ -29,9 +30,92 @@ type MyProfileResponse struct {
 type UpdateProfileRequest struct {
 	DisplayName *string `json:"displayName" validate:"omitempty,min=1,max=50"`
 	AvatarURL   *string `json:"avatarUrl" validate:"omitempty,url"`
+	Timezone    *string `json:"timezone" validate:"omitempty,max=100"`
 }
 
 // UploadPictureResponse represents the response after uploading a profile picture
 type UploadPictureResponse struct {
 	AvatarURL string `json:"avatarUrl"`
+}
+
+// SoldItemStat represents a stat on a sold item
+type SoldItemStat struct {
+	Code        string `json:"code"`
+	Value       *int   `json:"value,omitempty"`
+	DisplayText string `json:"displayText,omitempty"`
+	IsVariable  bool   `json:"isVariable,omitempty"`
+}
+
+// SoldItemInfo represents the item info in a sale
+type SoldItemInfo struct {
+	Name     string         `json:"name"`
+	BaseName string         `json:"baseName,omitempty"`
+	ImageURL string         `json:"imageUrl,omitempty"`
+	ItemType string         `json:"itemType"`
+	Rarity   string         `json:"rarity"`
+	Stats    []SoldItemStat `json:"stats,omitempty"`
+}
+
+// SoldForItem represents what the item sold for
+type SoldForItem struct {
+	Type     string `json:"type"`
+	Name     string `json:"name"`
+	Quantity int    `json:"quantity"`
+	ImageURL string `json:"imageUrl,omitempty"`
+}
+
+// SaleBuyerInfo represents the buyer info in a sale
+type SaleBuyerInfo struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"displayName"`
+	AvatarURL   string `json:"avatarUrl,omitempty"`
+}
+
+// SaleReview represents the review left by the buyer
+type SaleReview struct {
+	Rating    int       `json:"rating"`
+	Comment   string    `json:"comment,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// SoldItem represents a completed sale
+type SoldItem struct {
+	ID          string        `json:"id"`
+	CompletedAt time.Time     `json:"completedAt"`
+	Item        SoldItemInfo  `json:"item"`
+	SoldFor     []SoldForItem `json:"soldFor"`
+	Buyer       SaleBuyerInfo `json:"buyer"`
+	Review      *SaleReview   `json:"review,omitempty"`
+}
+
+// SalesResponse represents the response for the sales endpoint
+type SalesResponse struct {
+	Sales   []SoldItem `json:"sales"`
+	Total   int        `json:"total"`
+	HasMore bool       `json:"hasMore"`
+}
+
+// SalesFilterRequest represents filter parameters for sales
+type SalesFilterRequest struct {
+	Limit  int `query:"limit"`
+	Offset int `query:"offset"`
+}
+
+// GetLimit returns the limit with defaults
+func (r *SalesFilterRequest) GetLimit() int {
+	if r.Limit <= 0 {
+		return 10
+	}
+	if r.Limit > 100 {
+		return 100
+	}
+	return r.Limit
+}
+
+// GetOffset returns the offset
+func (r *SalesFilterRequest) GetOffset() int {
+	if r.Offset < 0 {
+		return 0
+	}
+	return r.Offset
 }

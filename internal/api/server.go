@@ -130,6 +130,7 @@ func (s *Server) setupRoutes() {
 
 	// Create services
 	profileService := service.NewProfileService(profileRepo, s.redis, s.storage)
+	profileService.SetTransactionRepository(transactionRepo)
 	notificationService := service.NewNotificationService(notificationRepo, s.redis)
 	listingService := service.NewListingService(listingRepo, profileService, s.redis)
 	wishlistService := service.NewWishlistService(wishlistRepo, profileService, notificationService)
@@ -231,6 +232,7 @@ func (s *Server) setupRoutes() {
 	apiV1.Get("/listings/:id", authOptional, listingHandler.GetByID)
 	apiV1.Get("/profiles/:id", profileHandler.GetByID)
 	apiV1.Get("/profiles/:id/ratings", ratingHandler.GetByProfileID)
+	apiV1.Get("/profiles/:id/sales", profileHandler.GetSales)
 	apiV1.Get("/decline-reasons", offerHandler.GetDeclineReasons)
 	apiV1.Get("/marketplace/stats", statsHandler.GetMarketplaceStats)
 

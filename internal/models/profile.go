@@ -27,6 +27,7 @@ type Profile struct {
 	SubscriptionCurrentPeriodEnd   *time.Time `bun:"subscription_current_period_end"`
 	CancelAtPeriodEnd              bool       `bun:"cancel_at_period_end,default:false"`
 	ProfileFlair                   *string    `bun:"profile_flair"`
+	Timezone                       *string    `bun:"timezone"`
 	LastActiveAt                   time.Time  `bun:"last_active_at,nullzero,default:current_timestamp"`
 	CreatedAt                      time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt                      time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
@@ -65,6 +66,14 @@ func (p *Profile) IsBattleNetLinked() bool {
 func (p *Profile) GetProfileFlair() string {
 	if p.ProfileFlair != nil {
 		return *p.ProfileFlair
+	}
+	return ""
+}
+
+// GetTimezone returns the timezone or empty string
+func (p *Profile) GetTimezone() string {
+	if p.Timezone != nil {
+		return *p.Timezone
 	}
 	return ""
 }

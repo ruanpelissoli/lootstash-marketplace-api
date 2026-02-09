@@ -228,3 +228,61 @@ func isValidImageType(contentType string) bool {
 		return false
 	}
 }
+
+// GetSales handles GET /api/v1/profiles/:id/sales
+func (h *ProfileHandler) GetSales(c *fiber.Ctx) error {
+	profileID := c.Params("id")
+	if profileID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error:   "bad_request",
+			Message: "Profile ID is required",
+			Code:    400,
+		})
+	}
+
+	var filter dto.SalesFilterRequest
+	if err := c.QueryParser(&filter); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error:   "bad_request",
+			Message: "Invalid query parameters",
+			Code:    400,
+		})
+	}
+
+	// Verify profile exists
+	_, err := h.service.GetByID(c.Context(), profileID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.Status(fiber.StatusNotFound).JSON(dto.ErrorResponse{
+				Error:   "not_found",
+				Message: "Profile not found",
+				Code:    404,
+			})
+		}
+		logger.FromContext(c.UserContext()).Error("failed to get profile",
+			"error", err.Error(),
+			"profile_id", profileID,
+		)
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "internal_error",
+			Message: "Failed to get profile",
+			Code:    500,
+		})
+	}
+
+	// Get sales
+	response, err := h.service.GetSales(c.Context(), profileID, filter.GetOffset(), filter.GetLimit())
+	if err != nil {
+		logger.FromContext(c.UserContext()).Error("failed to get sales",
+			"error", err.Error(),
+			"profile_id", profileID,
+		)
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "internal_error",
+			Message: "Failed to get sales",
+			Code:    500,
+		})
+	}
+
+	return c.JSON(response)
+}

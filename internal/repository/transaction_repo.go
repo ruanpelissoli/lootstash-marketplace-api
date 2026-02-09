@@ -74,3 +74,59 @@ func (r *transactionRepository) GetTradeVolume(ctx context.Context, itemName str
 	}
 	return results, nil
 }
+
+func (r *transactionRepository) GetSalesBySeller(ctx context.Context, sellerID string, offset, limit int) ([]SaleRecord, int, error) {
+	// Count total sales for pagination
+	count, err := r.db.DB().NewSelect().
+		TableExpr("d2.transactions AS tx").
+		Join("INNER JOIN d2.trades AS t ON t.id = tx.trade_id").
+		Where("tx.seller_id = ?", sellerID).
+		Where("t.status = ?", "completed").
+		Count(ctx)
+	if err != nil {
+		logger.FromContext(ctx).Error("failed to count sales",
+			"error", err.Error(),
+			"seller_id", sellerID,
+		)
+		return nil, 0, err
+	}
+
+	// Fetch sales with related data
+	var results []SaleRecord
+	err = r.db.DB().NewSelect().
+		ColumnExpr("tx.id AS transaction_id").
+		ColumnExpr("t.completed_at").
+		ColumnExpr("tx.item_name").
+		ColumnExpr("l.item_type").
+		ColumnExpr("l.rarity").
+		ColumnExpr("l.image_url").
+		ColumnExpr("l.base_item_name AS base_name").
+		ColumnExpr("l.stats").
+		ColumnExpr("tx.offered_items").
+		ColumnExpr("buyer.id AS buyer_id").
+		ColumnExpr("COALESCE(buyer.display_name, buyer.username) AS buyer_name").
+		ColumnExpr("buyer.avatar_url AS buyer_avatar").
+		ColumnExpr("r.stars AS review_rating").
+		ColumnExpr("r.comment AS review_comment").
+		ColumnExpr("r.created_at AS reviewed_at").
+		TableExpr("d2.transactions AS tx").
+		Join("INNER JOIN d2.trades AS t ON t.id = tx.trade_id").
+		Join("INNER JOIN d2.listings AS l ON l.id = tx.listing_id").
+		Join("INNER JOIN d2.profiles AS buyer ON buyer.id = tx.buyer_id").
+		Join("LEFT JOIN d2.ratings AS r ON r.transaction_id = tx.id AND r.rater_id = tx.buyer_id").
+		Where("tx.seller_id = ?", sellerID).
+		Where("t.status = ?", "completed").
+		Order("t.completed_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Scan(ctx, &results)
+	if err != nil {
+		logger.FromContext(ctx).Error("failed to get sales",
+			"error", err.Error(),
+			"seller_id", sellerID,
+		)
+		return nil, 0, err
+	}
+
+	return results, count, nil
+}

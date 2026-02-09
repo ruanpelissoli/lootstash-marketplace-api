@@ -32,8 +32,9 @@ type Listing struct {
 	Ladder      bool            `bun:"ladder,default:true"`
 	Hardcore    bool            `bun:"hardcore,default:false"`
 	Platform    string          `bun:"platform,default:'pc'"`
-	Region      string          `bun:"region,default:'americas'"`
-	Status      string          `bun:"status,notnull,default:'active'"`
+	Region         string          `bun:"region,default:'americas'"`
+	SellerTimezone *string         `bun:"seller_timezone"`
+	Status         string          `bun:"status,notnull,default:'active'"`
 	Views       int             `bun:"views,default:0"`
 	CreatedAt   time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt   time.Time       `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
@@ -100,6 +101,14 @@ func (l *Listing) GetBaseItemName() string {
 func (l *Listing) GetCatalogItemID() string {
 	if l.CatalogItemID != nil {
 		return *l.CatalogItemID
+	}
+	return ""
+}
+
+// GetSellerTimezone returns the seller timezone or empty string
+func (l *Listing) GetSellerTimezone() string {
+	if l.SellerTimezone != nil {
+		return *l.SellerTimezone
 	}
 	return ""
 }
