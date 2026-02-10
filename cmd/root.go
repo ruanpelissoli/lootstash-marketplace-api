@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/spf13/cobra"
 )
@@ -68,6 +69,17 @@ func getEnvOrDefaultBool(key string, defaultValue bool) bool {
 		return defaultValue
 	}
 	return value == "true" || value == "1"
+}
+
+func getEnvOrDefaultInt(key string, defaultValue int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	if result, err := strconv.Atoi(value); err == nil {
+		return result
+	}
+	return defaultValue
 }
 
 func GetDatabaseURL() string {
