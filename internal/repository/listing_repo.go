@@ -374,3 +374,46 @@ func (r *listingRepository) CountActive(ctx context.Context) (int, error) {
 		Count(ctx)
 	return count, err
 }
+
+func (r *listingRepository) CancelOldestActiveListings(ctx context.Context, sellerID string, keepCount int) (int, error) {
+	// Get IDs of the N most recent active listings to keep
+	var keepIDs []string
+	err := r.db.DB().NewSelect().
+		Model((*models.Listing)(nil)).
+		Column("id").
+		Where("seller_id = ?", sellerID).
+		Where("status = ?", "active").
+		Order("created_at DESC").
+		Limit(keepCount).
+		Scan(ctx, &keepIDs)
+	if err != nil {
+		logger.FromContext(ctx).Error("failed to get listings to keep",
+			"error", err.Error(),
+			"seller_id", sellerID,
+		)
+		return 0, err
+	}
+
+	// Cancel all other active listings
+	query := r.db.DB().NewUpdate().
+		Model((*models.Listing)(nil)).
+		Set("status = ?", "cancelled").
+		Where("seller_id = ?", sellerID).
+		Where("status = ?", "active")
+
+	if len(keepIDs) > 0 {
+		query = query.Where("id NOT IN (?)", bun.In(keepIDs))
+	}
+
+	res, err := query.Exec(ctx)
+	if err != nil {
+		logger.FromContext(ctx).Error("failed to cancel oldest active listings",
+			"error", err.Error(),
+			"seller_id", sellerID,
+		)
+		return 0, err
+	}
+
+	rowsAffected, _ := res.RowsAffected()
+	return int(rowsAffected), nil
+}

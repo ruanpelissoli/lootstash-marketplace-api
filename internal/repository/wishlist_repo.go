@@ -111,6 +111,25 @@ func (r *wishlistRepository) CountActiveByUserID(ctx context.Context, userID str
 	return count, err
 }
 
+func (r *wishlistRepository) DeleteAllByUserID(ctx context.Context, userID string) (int, error) {
+	res, err := r.db.DB().NewUpdate().
+		Model((*models.WishlistItem)(nil)).
+		Set("status = ?", "deleted").
+		Set("updated_at = ?", time.Now()).
+		Where("user_id = ?", userID).
+		Where("status != ?", "deleted").
+		Exec(ctx)
+	if err != nil {
+		logger.FromContext(ctx).Error("failed to delete all wishlist items for user",
+			"error", err.Error(),
+			"user_id", userID,
+		)
+		return 0, err
+	}
+	rowsAffected, _ := res.RowsAffected()
+	return int(rowsAffected), nil
+}
+
 func (r *wishlistRepository) FindMatchingItems(ctx context.Context, listing *models.Listing) ([]*models.WishlistItem, error) {
 	log := logger.FromContext(ctx)
 	var items []*models.WishlistItem

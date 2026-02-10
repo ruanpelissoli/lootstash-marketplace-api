@@ -31,12 +31,14 @@ type StripeConfig struct {
 
 // SubscriptionService handles premium subscription logic
 type SubscriptionService struct {
-	profileRepo    repository.ProfileRepository
-	billingRepo    repository.BillingEventRepository
+	profileRepo     repository.ProfileRepository
+	billingRepo     repository.BillingEventRepository
 	transactionRepo repository.TransactionRepository
-	redis          *cache.RedisClient
-	invalidator    *cache.Invalidator
-	config         StripeConfig
+	wishlistRepo    repository.WishlistRepository
+	listingRepo     repository.ListingRepository
+	redis           *cache.RedisClient
+	invalidator     *cache.Invalidator
+	config          StripeConfig
 }
 
 // NewSubscriptionService creates a new subscription service
@@ -44,6 +46,8 @@ func NewSubscriptionService(
 	profileRepo repository.ProfileRepository,
 	billingRepo repository.BillingEventRepository,
 	transactionRepo repository.TransactionRepository,
+	wishlistRepo repository.WishlistRepository,
+	listingRepo repository.ListingRepository,
 	redis *cache.RedisClient,
 	config StripeConfig,
 ) *SubscriptionService {
@@ -52,6 +56,8 @@ func NewSubscriptionService(
 		profileRepo:     profileRepo,
 		billingRepo:     billingRepo,
 		transactionRepo: transactionRepo,
+		wishlistRepo:    wishlistRepo,
+		listingRepo:     listingRepo,
 		redis:           redis,
 		invalidator:     cache.NewInvalidator(redis),
 		config:          config,
@@ -320,6 +326,8 @@ func (s *SubscriptionService) handleSubscriptionUpdated(ctx context.Context, eve
 }
 
 func (s *SubscriptionService) handleSubscriptionDeleted(ctx context.Context, event stripe.Event) error {
+	log := logger.FromContext(ctx)
+
 	var sub stripe.Subscription
 	if err := json.Unmarshal(event.Data.Raw, &sub); err != nil {
 		return fmt.Errorf("failed to parse subscription: %w", err)
@@ -330,13 +338,41 @@ func (s *SubscriptionService) handleSubscriptionDeleted(ctx context.Context, eve
 		return fmt.Errorf("could not find user for subscription %s: %w", sub.ID, err)
 	}
 
+	// Remove premium status and profile flair
 	profile.IsPremium = false
 	profile.SubscriptionStatus = "cancelled"
 	profile.CancelAtPeriodEnd = false
+	profile.ProfileFlair = nil
 	if err := s.profileRepo.Update(ctx, profile); err != nil {
 		return err
 	}
 	_ = s.invalidator.InvalidateProfile(ctx, profile.ID)
+
+	// Best-effort cleanup: delete all wishlist items
+	if deletedCount, err := s.wishlistRepo.DeleteAllByUserID(ctx, profile.ID); err != nil {
+		log.Error("failed to delete wishlist items on subscription cancellation",
+			"error", err.Error(),
+			"user_id", profile.ID,
+		)
+	} else if deletedCount > 0 {
+		log.Info("deleted wishlist items on subscription cancellation",
+			"user_id", profile.ID,
+			"deleted_count", deletedCount,
+		)
+	}
+
+	// Best-effort cleanup: cancel excess listings (keep only 3 most recent)
+	if cancelledCount, err := s.listingRepo.CancelOldestActiveListings(ctx, profile.ID, 3); err != nil {
+		log.Error("failed to cancel excess listings on subscription cancellation",
+			"error", err.Error(),
+			"user_id", profile.ID,
+		)
+	} else if cancelledCount > 0 {
+		log.Info("cancelled excess listings on subscription cancellation",
+			"user_id", profile.ID,
+			"cancelled_count", cancelledCount,
+		)
+	}
 
 	return nil
 }

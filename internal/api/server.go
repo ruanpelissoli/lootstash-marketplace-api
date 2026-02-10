@@ -176,6 +176,8 @@ func (s *Server) setupRoutes() {
 		profileRepo,
 		billingEventRepo,
 		transactionRepo,
+		wishlistRepo,
+		listingRepo,
 		s.redis,
 		service.StripeConfig{
 			SecretKey:       s.config.StripeSecretKey,

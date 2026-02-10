@@ -29,6 +29,7 @@ type ListingRepository interface {
 	CountActiveBySellerID(ctx context.Context, sellerID string) (int, error)
 	IncrementViews(ctx context.Context, id string) error
 	CountActive(ctx context.Context) (int, error)
+	CancelOldestActiveListings(ctx context.Context, sellerID string, keepCount int) (int, error)
 }
 
 // StatsRepository defines the interface for marketplace stats data access
@@ -191,6 +192,7 @@ type WishlistRepository interface {
 	GetByID(ctx context.Context, id string) (*models.WishlistItem, error)
 	Update(ctx context.Context, item *models.WishlistItem) error
 	Delete(ctx context.Context, id string) error
+	DeleteAllByUserID(ctx context.Context, userID string) (int, error)
 	ListByUserID(ctx context.Context, userID string, offset, limit int) ([]*models.WishlistItem, int, error)
 	CountActiveByUserID(ctx context.Context, userID string) (int, error)
 	FindMatchingItems(ctx context.Context, listing *models.Listing) ([]*models.WishlistItem, error)
