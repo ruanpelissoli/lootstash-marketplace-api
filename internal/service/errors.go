@@ -20,4 +20,7 @@ var (
 
 	// ErrSelfAction indicates the user tried to perform an action on themselves
 	ErrSelfAction = errors.New("cannot perform this action on yourself")
+
+	// ErrInvalidPriceID indicates the provided Stripe price ID is not allowed
+	ErrInvalidPriceID = errors.New("invalid price ID")
 )

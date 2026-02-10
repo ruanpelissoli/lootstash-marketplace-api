@@ -154,6 +154,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		StripePriceID:         GetStripePriceID(),
 		StripeSuccessURL:      GetStripeSuccessURL(),
 		StripeCancelURL:       GetStripeCancelURL(),
+		StripeAllowedPriceIDs: GetStripeAllowedPriceIDs(),
 	}
 
 	// Create and start server

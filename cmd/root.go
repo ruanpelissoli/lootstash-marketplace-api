@@ -23,6 +23,9 @@ var (
 	stripePriceID         string
 	stripeSuccessURL      string
 	stripeCancelURL       string
+	stripePriceIDUSD      string
+	stripePriceIDEUR      string
+	stripePriceIDBRL      string
 )
 
 var rootCmd = &cobra.Command{
@@ -54,6 +57,9 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&stripePriceID, "stripe-price-id", getEnvOrDefault("STRIPE_PRICE_ID", ""), "Stripe price ID for premium subscription")
 	rootCmd.PersistentFlags().StringVar(&stripeSuccessURL, "stripe-success-url", getEnvOrDefault("STRIPE_SUCCESS_URL", ""), "URL to redirect after successful checkout")
 	rootCmd.PersistentFlags().StringVar(&stripeCancelURL, "stripe-cancel-url", getEnvOrDefault("STRIPE_CANCEL_URL", ""), "URL to redirect after cancelled checkout")
+	rootCmd.PersistentFlags().StringVar(&stripePriceIDUSD, "stripe-price-id-usd", getEnvOrDefault("STRIPE_PRICE_ID_USD", ""), "Stripe price ID for USD")
+	rootCmd.PersistentFlags().StringVar(&stripePriceIDEUR, "stripe-price-id-eur", getEnvOrDefault("STRIPE_PRICE_ID_EUR", ""), "Stripe price ID for EUR")
+	rootCmd.PersistentFlags().StringVar(&stripePriceIDBRL, "stripe-price-id-brl", getEnvOrDefault("STRIPE_PRICE_ID_BRL", ""), "Stripe price ID for BRL")
 }
 
 func getEnvOrDefault(key, defaultValue string) string {
@@ -160,6 +166,39 @@ func GetStripeCancelURL() string {
 		return os.Getenv("STRIPE_CANCEL_URL")
 	}
 	return stripeCancelURL
+}
+
+func GetStripeAllowedPriceIDs() []string {
+	ids := make([]string, 0, 3)
+
+	// Get USD price ID
+	usd := stripePriceIDUSD
+	if usd == "" {
+		usd = os.Getenv("STRIPE_PRICE_ID_USD")
+	}
+	if usd != "" {
+		ids = append(ids, usd)
+	}
+
+	// Get EUR price ID
+	eur := stripePriceIDEUR
+	if eur == "" {
+		eur = os.Getenv("STRIPE_PRICE_ID_EUR")
+	}
+	if eur != "" {
+		ids = append(ids, eur)
+	}
+
+	// Get BRL price ID
+	brl := stripePriceIDBRL
+	if brl == "" {
+		brl = os.Getenv("STRIPE_PRICE_ID_BRL")
+	}
+	if brl != "" {
+		ids = append(ids, brl)
+	}
+
+	return ids
 }
 
 func PrintSuccess(msg string) {

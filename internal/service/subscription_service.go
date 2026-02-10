@@ -21,11 +21,12 @@ import (
 
 // StripeConfig holds Stripe-specific configuration
 type StripeConfig struct {
-	SecretKey      string
-	WebhookSecret  string
-	PriceID        string
-	SuccessURL     string
-	CancelURL      string
+	SecretKey       string
+	WebhookSecret   string
+	PriceID         string
+	SuccessURL      string
+	CancelURL       string
+	AllowedPriceIDs []string // List of allowed price IDs for geo-based pricing
 }
 
 // SubscriptionService handles premium subscription logic
@@ -74,7 +75,18 @@ func (s *SubscriptionService) GetSubscriptionInfo(ctx context.Context, userID st
 }
 
 // CreateCheckoutSession creates a Stripe checkout session for premium subscription
-func (s *SubscriptionService) CreateCheckoutSession(ctx context.Context, userID string) (*dto.CheckoutResponse, error) {
+func (s *SubscriptionService) CreateCheckoutSession(ctx context.Context, userID string, priceID string) (*dto.CheckoutResponse, error) {
+	// Determine which price ID to use
+	effectivePriceID := priceID
+	if effectivePriceID == "" {
+		effectivePriceID = s.config.PriceID
+	}
+
+	// Validate price ID against allowed list
+	if !s.isAllowedPriceID(effectivePriceID) {
+		return nil, ErrInvalidPriceID
+	}
+
 	profile, err := s.profileRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -117,7 +129,7 @@ func (s *SubscriptionService) CreateCheckoutSession(ctx context.Context, userID 
 		Mode:     stripe.String(string(stripe.CheckoutSessionModeSubscription)),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
-				Price:    stripe.String(s.config.PriceID),
+				Price:    stripe.String(effectivePriceID),
 				Quantity: stripe.Int64(1),
 			},
 		},
@@ -138,6 +150,21 @@ func (s *SubscriptionService) CreateCheckoutSession(ctx context.Context, userID 
 	return &dto.CheckoutResponse{
 		CheckoutURL: sess.URL,
 	}, nil
+}
+
+// isAllowedPriceID validates that the price ID is in the allowed list
+func (s *SubscriptionService) isAllowedPriceID(priceID string) bool {
+	// If no allowed list configured, only allow the default price ID
+	if len(s.config.AllowedPriceIDs) == 0 {
+		return priceID == s.config.PriceID
+	}
+
+	for _, allowed := range s.config.AllowedPriceIDs {
+		if allowed == priceID {
+			return true
+		}
+	}
+	return false
 }
 
 // CancelSubscription cancels the user's subscription at the end of the billing period

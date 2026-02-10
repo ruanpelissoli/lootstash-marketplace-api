@@ -45,11 +45,12 @@ type Config struct {
 	BattleNetClientSecret string
 	BattleNetRedirectURI  string
 	// Stripe configuration
-	StripeSecretKey    string
-	StripeWebhookSecret string
-	StripePriceID      string
-	StripeSuccessURL   string
-	StripeCancelURL    string
+	StripeSecretKey       string
+	StripeWebhookSecret   string
+	StripePriceID         string
+	StripeSuccessURL      string
+	StripeCancelURL       string
+	StripeAllowedPriceIDs []string
 }
 
 // DefaultConfig returns default server configuration
@@ -177,11 +178,12 @@ func (s *Server) setupRoutes() {
 		transactionRepo,
 		s.redis,
 		service.StripeConfig{
-			SecretKey:     s.config.StripeSecretKey,
-			WebhookSecret: s.config.StripeWebhookSecret,
-			PriceID:       s.config.StripePriceID,
-			SuccessURL:    s.config.StripeSuccessURL,
-			CancelURL:     s.config.StripeCancelURL,
+			SecretKey:       s.config.StripeSecretKey,
+			WebhookSecret:   s.config.StripeWebhookSecret,
+			PriceID:         s.config.StripePriceID,
+			SuccessURL:      s.config.StripeSuccessURL,
+			CancelURL:       s.config.StripeCancelURL,
+			AllowedPriceIDs: s.config.StripeAllowedPriceIDs,
 		},
 	)
 

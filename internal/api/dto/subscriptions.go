@@ -2,6 +2,11 @@ package dto
 
 import "time"
 
+// CheckoutRequest contains the request body for creating a checkout session
+type CheckoutRequest struct {
+	PriceID string `json:"priceId"`
+}
+
 // SubscriptionInfoResponse represents the user's subscription status
 type SubscriptionInfoResponse struct {
 	IsPremium          bool       `json:"isPremium"`
