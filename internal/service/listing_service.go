@@ -273,21 +273,37 @@ func (s *ListingService) List(ctx context.Context, req *dto.ListingFilterRequest
 		}
 	}
 
+	// Parse asking_for filters
+	var askingForFilters []repository.AskingForFilter
+	if len(req.AskingForFilters) > 0 {
+		var dtoFilters []dto.AskingForFilter
+		if json.Unmarshal(req.AskingForFilters, &dtoFilters) == nil {
+			for _, f := range dtoFilters {
+				askingForFilters = append(askingForFilters, repository.AskingForFilter{
+					Name:        f.Name,
+					Type:        f.Type,
+					MinQuantity: f.MinQuantity,
+				})
+			}
+		}
+	}
+
 	filter := repository.ListingFilter{
-		SellerID:     req.SellerID,
-		Query:        req.Q,
-		Game:         req.Game,
-		Ladder:       req.Ladder,
-		Hardcore:     req.Hardcore,
-		Platform:     req.Platform,
-		Region:       req.Region,
-		Category:     req.Category,
-		Rarity:       req.Rarity,
-		AffixFilters: affixFilters,
-		SortBy:       req.SortBy,
-		SortOrder:    req.SortOrder,
-		Offset:       req.GetOffset(),
-		Limit:        req.GetLimit(),
+		SellerID:         req.SellerID,
+		Query:            req.Q,
+		Game:             req.Game,
+		Ladder:           req.Ladder,
+		Hardcore:         req.Hardcore,
+		Platform:         req.Platform,
+		Region:           req.Region,
+		Category:         req.Category,
+		Rarity:           req.Rarity,
+		AffixFilters:     affixFilters,
+		AskingForFilters: askingForFilters,
+		SortBy:           req.SortBy,
+		SortOrder:        req.SortOrder,
+		Offset:           req.GetOffset(),
+		Limit:            req.GetLimit(),
 	}
 
 	return s.repo.List(ctx, filter)

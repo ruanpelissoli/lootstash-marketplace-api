@@ -101,18 +101,19 @@ type UpdateListingRequest struct {
 
 // ListingFilterRequest represents listing filter parameters
 type ListingFilterRequest struct {
-	SellerID     string          `query:"sellerId"`
-	Q            string          `query:"q"`
-	Game         string          `query:"game"`
-	Ladder       *bool           `query:"ladder"`
-	Hardcore     *bool           `query:"hardcore"`
-	Platform     string          `query:"platform"`
-	Region       string          `query:"region"`
-	Category     string          `query:"category"`
-	Rarity       string          `query:"rarity"`
-	AffixFilters json.RawMessage `query:"affixFilters"`
-	SortBy       string          `query:"sortBy"`
-	SortOrder    string          `query:"sortOrder"`
+	SellerID         string          `query:"sellerId"`
+	Q                string          `query:"q"`
+	Game             string          `query:"game"`
+	Ladder           *bool           `query:"ladder"`
+	Hardcore         *bool           `query:"hardcore"`
+	Platform         string          `query:"platform"`
+	Region           string          `query:"region"`
+	Category         string          `query:"category"`
+	Rarity           string          `query:"rarity"`
+	AffixFilters     json.RawMessage `query:"affixFilters"`
+	AskingForFilters json.RawMessage `query:"askingForFilters"`
+	SortBy           string          `query:"sortBy"`
+	SortOrder        string          `query:"sortOrder"`
 	Pagination
 }
 
@@ -121,6 +122,13 @@ type AffixFilter struct {
 	Code     string `json:"code"`
 	MinValue *int   `json:"minValue,omitempty"`
 	MaxValue *int   `json:"maxValue,omitempty"`
+}
+
+// AskingForFilter represents a filter for what sellers are asking for
+type AskingForFilter struct {
+	Name        string `json:"name" validate:"required,min=1,max=100"`
+	Type        string `json:"type,omitempty" validate:"omitempty,max=50"`
+	MinQuantity *int   `json:"minQuantity,omitempty" validate:"omitempty,min=1"`
 }
 
 // ItemStat represents a stat on a listing item with display name
@@ -143,21 +151,22 @@ type RuneInfo struct {
 
 // SearchListingsRequest represents listing search/filter parameters via JSON body
 type SearchListingsRequest struct {
-	Q             string        `json:"q"`
-	CatalogItemID string        `json:"catalogItemId"`
-	Game          string        `json:"game"`
-	Ladder       *bool         `json:"ladder"`
-	Hardcore     *bool         `json:"hardcore"`
-	Platform     string        `json:"platform"`
-	Region       string        `json:"region"`
-	Category     string        `json:"category"`
-	Rarity       string        `json:"rarity"`
-	SellerID     string        `json:"sellerId"`
-	AffixFilters []AffixFilter `json:"affixFilters"`
-	SortBy       string        `json:"sortBy"`
-	SortOrder    string        `json:"sortOrder"`
-	Page         int           `json:"page"`
-	PerPage      int           `json:"perPage"`
+	Q                string            `json:"q"`
+	CatalogItemID    string            `json:"catalogItemId"`
+	Game             string            `json:"game"`
+	Ladder           *bool             `json:"ladder"`
+	Hardcore         *bool             `json:"hardcore"`
+	Platform         string            `json:"platform"`
+	Region           string            `json:"region"`
+	Category         string            `json:"category"`
+	Rarity           string            `json:"rarity"`
+	SellerID         string            `json:"sellerId"`
+	AffixFilters     []AffixFilter     `json:"affixFilters"`
+	AskingForFilters []AskingForFilter `json:"askingForFilters"`
+	SortBy           string            `json:"sortBy"`
+	SortOrder        string            `json:"sortOrder"`
+	Page             int               `json:"page"`
+	PerPage          int               `json:"perPage"`
 }
 
 // MyListingsFilterRequest represents filter parameters for user's own listings

@@ -46,21 +46,22 @@ type MarketplaceStats struct {
 
 // ListingFilter represents listing query parameters
 type ListingFilter struct {
-	SellerID      string
-	Query         string
-	CatalogItemID string
-	Game          string
-	Ladder       *bool
-	Hardcore     *bool
-	Platform     string
-	Region       string
-	Category     string
-	Rarity       string
-	AffixFilters []AffixFilter
-	SortBy       string
-	SortOrder    string
-	Offset       int
-	Limit        int
+	SellerID         string
+	Query            string
+	CatalogItemID    string
+	Game             string
+	Ladder           *bool
+	Hardcore         *bool
+	Platform         string
+	Region           string
+	Category         string
+	Rarity           string
+	AffixFilters     []AffixFilter
+	AskingForFilters []AskingForFilter
+	SortBy           string
+	SortOrder        string
+	Offset           int
+	Limit            int
 }
 
 // AffixFilter represents an affix filter for JSONB queries
@@ -68,6 +69,13 @@ type AffixFilter struct {
 	Code     string
 	MinValue *int
 	MaxValue *int
+}
+
+// AskingForFilter represents an asking_for filter for JSONB queries
+type AskingForFilter struct {
+	Name        string
+	Type        string
+	MinQuantity *int
 }
 
 // OfferRepository defines the interface for offer data access

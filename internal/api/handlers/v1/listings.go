@@ -84,22 +84,33 @@ func (h *ListingHandler) Search(c *fiber.Ctx) error {
 		})
 	}
 
+	// Convert asking_for filters
+	var askingForFilters []repository.AskingForFilter
+	for _, f := range req.AskingForFilters {
+		askingForFilters = append(askingForFilters, repository.AskingForFilter{
+			Name:        f.Name,
+			Type:        f.Type,
+			MinQuantity: f.MinQuantity,
+		})
+	}
+
 	filter := repository.ListingFilter{
-		SellerID:      req.SellerID,
-		Query:         req.Q,
-		CatalogItemID: req.CatalogItemID,
-		Game:          req.Game,
-		Ladder:       req.Ladder,
-		Hardcore:     req.Hardcore,
-		Platform:     req.Platform,
-		Region:       req.Region,
-		Category:     req.Category,
-		Rarity:       req.Rarity,
-		AffixFilters: affixFilters,
-		SortBy:       req.SortBy,
-		SortOrder:    req.SortOrder,
-		Offset:       pag.GetOffset(),
-		Limit:        pag.GetLimit(),
+		SellerID:         req.SellerID,
+		Query:            req.Q,
+		CatalogItemID:    req.CatalogItemID,
+		Game:             req.Game,
+		Ladder:           req.Ladder,
+		Hardcore:         req.Hardcore,
+		Platform:         req.Platform,
+		Region:           req.Region,
+		Category:         req.Category,
+		Rarity:           req.Rarity,
+		AffixFilters:     affixFilters,
+		AskingForFilters: askingForFilters,
+		SortBy:           req.SortBy,
+		SortOrder:        req.SortOrder,
+		Offset:           pag.GetOffset(),
+		Limit:            pag.GetLimit(),
 	}
 
 	listings, count, err := h.service.ListByFilter(c.Context(), filter)

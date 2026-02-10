@@ -218,6 +218,11 @@ func (r *listingRepository) applyFilters(query *bun.SelectQuery, filter ListingF
 		query = r.applyAffixFilter(query, af)
 	}
 
+	// Apply asking_for filters (JSONB queries)
+	for _, af := range filter.AskingForFilters {
+		query = r.applyAskingForFilter(query, af)
+	}
+
 	return query
 }
 
@@ -275,6 +280,34 @@ func (r *listingRepository) applyAffixFilter(query *bun.SelectQuery, af AffixFil
 		query = query.Where(
 			"EXISTS (SELECT 1 FROM jsonb_array_elements(l.stats) elem WHERE elem->>'code' IN (?)",
 			bun.In(codes),
+		)
+	}
+
+	return query
+}
+
+func (r *listingRepository) applyAskingForFilter(query *bun.SelectQuery, af AskingForFilter) *bun.SelectQuery {
+	namePattern := "%" + strings.ToLower(af.Name) + "%"
+
+	if af.Type != "" && af.MinQuantity != nil {
+		query = query.Where(
+			"(SELECT COUNT(*) FROM jsonb_array_elements(l.asking_for) elem WHERE LOWER(elem->>'name') LIKE ? AND elem->>'type' = ?) >= ?",
+			namePattern, af.Type, *af.MinQuantity,
+		)
+	} else if af.Type != "" {
+		query = query.Where(
+			"EXISTS (SELECT 1 FROM jsonb_array_elements(l.asking_for) elem WHERE LOWER(elem->>'name') LIKE ? AND elem->>'type' = ?)",
+			namePattern, af.Type,
+		)
+	} else if af.MinQuantity != nil {
+		query = query.Where(
+			"(SELECT COUNT(*) FROM jsonb_array_elements(l.asking_for) elem WHERE LOWER(elem->>'name') LIKE ?) >= ?",
+			namePattern, *af.MinQuantity,
+		)
+	} else {
+		query = query.Where(
+			"EXISTS (SELECT 1 FROM jsonb_array_elements(l.asking_for) elem WHERE LOWER(elem->>'name') LIKE ?)",
+			namePattern,
 		)
 	}
 
