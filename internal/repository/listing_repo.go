@@ -202,7 +202,7 @@ func (r *listingRepository) applyFilters(query *bun.SelectQuery, filter ListingF
 	}
 
 	if filter.Category != "" {
-		query = query.Where("l.category = ?", filter.Category)
+		query = query.Where("l.category = ? OR l.category LIKE ?", filter.Category, "% "+filter.Category)
 	}
 
 	if filter.Rarity != "" {
