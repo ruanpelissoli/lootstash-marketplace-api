@@ -14,6 +14,7 @@ type SubscriptionInfoResponse struct {
 	CurrentPeriodEnd   *time.Time `json:"currentPeriodEnd,omitempty"`
 	CancelAtPeriodEnd  bool       `json:"cancelAtPeriodEnd"`
 	ProfileFlair       string     `json:"profileFlair"`
+	UsernameColor      string     `json:"usernameColor"`
 }
 
 // CheckoutResponse contains the Stripe checkout session URL

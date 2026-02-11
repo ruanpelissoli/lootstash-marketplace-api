@@ -43,7 +43,7 @@ Get a user's public profile.
 **Path Parameters:**
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| id | uuid | User profile ID |
+| id | string | User profile ID (UUID) or username |
 
 **Response:**
 ```json
@@ -55,6 +55,10 @@ Get a user's public profile.
   "totalTrades": 0,
   "averageRating": 4.5,
   "ratingCount": 10,
+  "isPremium": true,
+  "isAdmin": false,
+  "profileFlair": "gold",
+  "usernameColor": "#FF5733",
   "createdAt": "2024-01-01T00:00:00Z"
 }
 ```
@@ -83,6 +87,10 @@ Authorization: Bearer <token>
   "totalTrades": 0,
   "averageRating": 4.5,
   "ratingCount": 10,
+  "isPremium": true,
+  "isAdmin": false,
+  "profileFlair": "gold",
+  "usernameColor": "#FF5733",
   "createdAt": "2024-01-01T00:00:00Z",
   "updatedAt": "2024-01-01T00:00:00Z"
 }
@@ -122,6 +130,10 @@ Content-Type: application/json
   "totalTrades": 0,
   "averageRating": 4.5,
   "ratingCount": 10,
+  "isPremium": true,
+  "isAdmin": false,
+  "profileFlair": "gold",
+  "usernameColor": "#FF5733",
   "createdAt": "2024-01-01T00:00:00Z",
   "updatedAt": "2024-01-01T00:00:00Z"
 }
@@ -161,6 +173,45 @@ Content-Type: multipart/form-data
 - `401` - Unauthorized
 - `404` - Profile not found
 - `500` - Upload failed
+
+---
+
+### PATCH /api/v1/me/username-color
+
+Update the current user's username color (premium only). Color is cleared on subscription cancellation.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "color": "#FF5733"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| color | string | A hex color code (e.g., `#FF5733`) or `"none"` to clear |
+
+**Validation:**
+- Must be `"none"` or a valid 6-digit hex color matching `^#[0-9A-Fa-f]{6}$`
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Username color updated"
+}
+```
+
+**Error Responses:**
+- `400` - Invalid color value
+- `401` - Unauthorized
+- `403` - Premium subscription required
 
 ---
 
@@ -219,6 +270,10 @@ GET /api/v1/listings?game=diablo2&ladder=true&category=helm&rarity=unique&page=1
         "totalTrades": 0,
         "averageRating": 4.5,
         "ratingCount": 10,
+        "isPremium": true,
+        "isAdmin": false,
+        "profileFlair": "gold",
+        "usernameColor": "#FF5733",
         "createdAt": "2024-01-01T00:00:00Z"
       },
       "name": "Harlequin Crest",
@@ -1668,6 +1723,133 @@ Get item categories for a specific game.
 
 **Error Responses:**
 - `404` - Game not found
+
+---
+
+## Bug Reports
+
+### POST /api/v1/bug-reports
+
+Submit a bug report. Any authenticated user can submit.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "title": "Button not working on mobile (required, 5-200 chars)",
+  "description": "When I tap the submit button on the offer page on my iPhone, nothing happens. (required, 10-5000 chars)"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "id": "uuid",
+  "title": "Button not working on mobile",
+  "description": "When I tap the submit button on the offer page on my iPhone, nothing happens.",
+  "status": "open",
+  "createdAt": "2024-01-01T00:00:00Z"
+}
+```
+
+**Error Responses:**
+- `400` - Validation error
+- `401` - Unauthorized
+
+---
+
+### GET /api/v1/bug-reports
+
+List all bug reports (admin only, paginated).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| status | string | Filter by status (open, resolved, closed) |
+| page | number | Page number (default: 1) |
+| perPage | number | Items per page (default: 20, max: 100) |
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "title": "Button not working on mobile",
+      "description": "When I tap the submit button...",
+      "status": "open",
+      "reporterId": "uuid",
+      "reporterUsername": "trader123",
+      "reporterAvatar": "https://...",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "page": 1,
+  "perPage": 20,
+  "totalCount": 5,
+  "totalPages": 1
+}
+```
+
+**Error Responses:**
+- `401` - Unauthorized
+- `403` - Admin access required
+
+---
+
+### PATCH /api/v1/bug-reports/:id
+
+Update a bug report's status (admin only).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Path Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | uuid | Bug report ID |
+
+**Request Body:**
+```json
+{
+  "status": "resolved (required: open|resolved|closed)"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "title": "Button not working on mobile",
+  "description": "When I tap the submit button...",
+  "status": "resolved",
+  "reporterId": "uuid",
+  "reporterUsername": "trader123",
+  "reporterAvatar": "https://...",
+  "createdAt": "2024-01-01T00:00:00Z",
+  "updatedAt": "2024-01-02T00:00:00Z"
+}
+```
+
+**Error Responses:**
+- `400` - Validation error
+- `401` - Unauthorized
+- `403` - Admin access required
+- `404` - Bug report not found
 
 ---
 

@@ -34,6 +34,22 @@ func (r *profileRepository) GetByID(ctx context.Context, id string) (*models.Pro
 	return profile, nil
 }
 
+func (r *profileRepository) GetByUsername(ctx context.Context, username string) (*models.Profile, error) {
+	profile := new(models.Profile)
+	err := r.db.DB().NewSelect().
+		Model(profile).
+		Where("LOWER(username) = LOWER(?)", username).
+		Scan(ctx)
+	if err != nil {
+		logger.FromContext(ctx).Debug("profile not found by username or error",
+			"username", username,
+			"error", err.Error(),
+		)
+		return nil, err
+	}
+	return profile, nil
+}
+
 func (r *profileRepository) GetByStripeCustomerID(ctx context.Context, customerID string) (*models.Profile, error) {
 	profile := new(models.Profile)
 	err := r.db.DB().NewSelect().

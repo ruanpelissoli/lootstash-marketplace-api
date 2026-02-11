@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/api/dto"
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/cache"
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/models"
@@ -67,6 +69,40 @@ func (s *ProfileService) GetByID(ctx context.Context, id string) (*models.Profil
 	return profile, nil
 }
 
+// GetByUsername retrieves a profile by username with caching
+func (s *ProfileService) GetByUsername(ctx context.Context, username string) (*models.Profile, error) {
+	// Try cache first
+	cacheKey := cache.ProfileUsernameKey(strings.ToLower(username))
+	cached, err := s.redis.Get(ctx, cacheKey)
+	if err == nil && cached != "" {
+		var profile models.Profile
+		if json.Unmarshal([]byte(cached), &profile) == nil {
+			return &profile, nil
+		}
+	}
+
+	// Fetch from database
+	profile, err := s.repo.GetByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache the result
+	if data, err := json.Marshal(profile); err == nil {
+		_ = s.redis.Set(ctx, cacheKey, string(data), profileCacheTTL)
+	}
+
+	return profile, nil
+}
+
+// GetByIdentifier retrieves a profile by UUID or username
+func (s *ProfileService) GetByIdentifier(ctx context.Context, identifier string) (*models.Profile, error) {
+	if _, err := uuid.Parse(identifier); err == nil {
+		return s.GetByID(ctx, identifier)
+	}
+	return s.GetByUsername(ctx, identifier)
+}
+
 // Update updates a user's profile
 func (s *ProfileService) Update(ctx context.Context, userID string, req *dto.UpdateProfileRequest) (*models.Profile, error) {
 	profile, err := s.repo.GetByID(ctx, userID)
@@ -91,6 +127,9 @@ func (s *ProfileService) Update(ctx context.Context, userID string, req *dto.Upd
 
 	// Invalidate cache
 	_ = s.invalidator.InvalidateProfile(ctx, userID)
+	if profile.Username != "" {
+		_ = s.invalidator.InvalidateProfileByUsername(ctx, strings.ToLower(profile.Username))
+	}
 
 	return profile, nil
 }
@@ -107,7 +146,9 @@ func (s *ProfileService) ToResponse(profile *models.Profile) *dto.ProfileRespons
 		AverageRating: profile.AverageRating,
 		RatingCount:   profile.RatingCount,
 		IsPremium:     profile.IsPremium,
+		IsAdmin:       profile.IsAdmin,
 		ProfileFlair:  profile.GetProfileFlair(),
+		UsernameColor: profile.GetUsernameColor(),
 		Timezone:      profile.GetTimezone(),
 		CreatedAt:     profile.CreatedAt,
 	}
@@ -121,6 +162,15 @@ func (s *ProfileService) ToMyProfileResponse(profile *models.Profile) *dto.MyPro
 		BattleNetLinkedAt: profile.BattleNetLinkedAt,
 		UpdatedAt:         profile.UpdatedAt,
 	}
+}
+
+// IsAdmin checks if a user has admin privileges using the cached profile
+func (s *ProfileService) IsAdmin(ctx context.Context, userID string) (bool, error) {
+	profile, err := s.GetByID(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	return profile.IsAdmin, nil
 }
 
 // UploadProfilePicture uploads a profile picture and updates the profile
@@ -164,6 +214,9 @@ func (s *ProfileService) UploadProfilePicture(ctx context.Context, userID string
 
 	// Invalidate cache
 	_ = s.invalidator.InvalidateProfile(ctx, userID)
+	if profile.Username != "" {
+		_ = s.invalidator.InvalidateProfileByUsername(ctx, strings.ToLower(profile.Username))
+	}
 
 	return avatarURL, nil
 }

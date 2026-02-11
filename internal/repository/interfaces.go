@@ -9,6 +9,7 @@ import (
 // ProfileRepository defines the interface for profile data access
 type ProfileRepository interface {
 	GetByID(ctx context.Context, id string) (*models.Profile, error)
+	GetByUsername(ctx context.Context, username string) (*models.Profile, error)
 	GetByStripeCustomerID(ctx context.Context, customerID string) (*models.Profile, error)
 	GetByStripeSubscriptionID(ctx context.Context, subscriptionID string) (*models.Profile, error)
 	Update(ctx context.Context, profile *models.Profile) error
@@ -196,6 +197,14 @@ type WishlistRepository interface {
 	ListByUserID(ctx context.Context, userID string, offset, limit int) ([]*models.WishlistItem, int, error)
 	CountActiveByUserID(ctx context.Context, userID string) (int, error)
 	FindMatchingItems(ctx context.Context, listing *models.Listing) ([]*models.WishlistItem, error)
+}
+
+// BugReportRepository defines the interface for bug report data access
+type BugReportRepository interface {
+	Create(ctx context.Context, report *models.BugReport) error
+	GetByID(ctx context.Context, id string) (*models.BugReport, error)
+	Update(ctx context.Context, report *models.BugReport) error
+	List(ctx context.Context, status string, offset, limit int) ([]*models.BugReport, int, error)
 }
 
 // RatingRepository defines the interface for rating data access

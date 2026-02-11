@@ -32,12 +32,12 @@ func (h *ProfileHandler) GetByID(c *fiber.Ctx) error {
 	if id == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
 			Error:   "bad_request",
-			Message: "Profile ID is required",
+			Message: "Profile identifier is required",
 			Code:    400,
 		})
 	}
 
-	profile, err := h.service.GetByID(c.Context(), id)
+	profile, err := h.service.GetByIdentifier(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return c.Status(fiber.StatusNotFound).JSON(dto.ErrorResponse{

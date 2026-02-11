@@ -5,6 +5,11 @@ type UpdateFlairRequest struct {
 	Flair string `json:"flair" validate:"required,oneof=none gold flame ice necro royal"`
 }
 
+// UpdateUsernameColorRequest represents a request to update username color
+type UpdateUsernameColorRequest struct {
+	Color string `json:"color" validate:"required"`
+}
+
 // ListingCountResponse contains the count of active listings
 type ListingCountResponse struct {
 	Count int `json:"count"`

@@ -17,6 +17,10 @@ func ProfileKey(id string) string {
 	return fmt.Sprintf("%s:%s", prefixProfile, id)
 }
 
+func ProfileUsernameKey(username string) string {
+	return fmt.Sprintf("%s:username:%s", prefixProfile, username)
+}
+
 func ProfilePattern() string {
 	return fmt.Sprintf("%s:*", prefixProfile)
 }

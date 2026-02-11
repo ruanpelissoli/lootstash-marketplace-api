@@ -77,6 +77,7 @@ func (s *SubscriptionService) GetSubscriptionInfo(ctx context.Context, userID st
 		CurrentPeriodEnd:   profile.SubscriptionCurrentPeriodEnd,
 		CancelAtPeriodEnd:  profile.CancelAtPeriodEnd,
 		ProfileFlair:       profile.GetProfileFlair(),
+		UsernameColor:      profile.GetUsernameColor(),
 	}, nil
 }
 
@@ -200,6 +201,38 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, userID str
 	return nil
 }
 
+// billingEventDisplayNames maps Stripe event types to user-friendly names
+var billingEventDisplayNames = map[string]string{
+	"checkout.session.completed":      "Subscription Started",
+	"customer.subscription.updated":   "Subscription Updated",
+	"customer.subscription.deleted":   "Subscription Cancelled",
+	"invoice.payment_succeeded":       "Payment Succeeded",
+	"invoice.payment_failed":          "Payment Failed",
+}
+
+// billingEventStatuses maps Stripe event types to simple status labels
+var billingEventStatuses = map[string]string{
+	"checkout.session.completed":      "completed",
+	"customer.subscription.updated":   "updated",
+	"customer.subscription.deleted":   "cancelled",
+	"invoice.payment_succeeded":       "succeeded",
+	"invoice.payment_failed":          "failed",
+}
+
+func billingDisplayName(eventType string) string {
+	if name, ok := billingEventDisplayNames[eventType]; ok {
+		return name
+	}
+	return eventType
+}
+
+func billingStatus(eventType string) string {
+	if status, ok := billingEventStatuses[eventType]; ok {
+		return status
+	}
+	return eventType
+}
+
 // GetBillingHistory returns the user's billing event history
 func (s *SubscriptionService) GetBillingHistory(ctx context.Context, userID string) (*dto.BillingHistoryResponse, error) {
 	events, err := s.billingRepo.GetByUserID(ctx, userID)
@@ -220,9 +253,9 @@ func (s *SubscriptionService) GetBillingHistory(ctx context.Context, userID stri
 		entries = append(entries, dto.BillingHistoryEntry{
 			ID:          e.ID,
 			Date:        e.CreatedAt.Format("2006-01-02"),
-			Description: e.EventType,
+			Description: billingDisplayName(e.EventType),
 			Amount:      amount,
-			Status:      e.EventType,
+			Status:      billingStatus(e.EventType),
 			InvoiceURL:  invoiceURL,
 		})
 	}
@@ -343,6 +376,7 @@ func (s *SubscriptionService) handleSubscriptionDeleted(ctx context.Context, eve
 	profile.SubscriptionStatus = "cancelled"
 	profile.CancelAtPeriodEnd = false
 	profile.ProfileFlair = nil
+	profile.UsernameColor = nil
 	if err := s.profileRepo.Update(ctx, profile); err != nil {
 		return err
 	}
@@ -495,6 +529,31 @@ func (s *SubscriptionService) UpdateFlair(ctx context.Context, userID string, fl
 		profile.ProfileFlair = nil
 	} else {
 		profile.ProfileFlair = &flair
+	}
+
+	if err := s.profileRepo.Update(ctx, profile); err != nil {
+		return err
+	}
+	_ = s.invalidator.InvalidateProfile(ctx, userID)
+
+	return nil
+}
+
+// UpdateUsernameColor updates the user's username color (premium only)
+func (s *SubscriptionService) UpdateUsernameColor(ctx context.Context, userID string, color string) error {
+	profile, err := s.profileRepo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	if !profile.IsPremium {
+		return ErrForbidden
+	}
+
+	if color == "none" {
+		profile.UsernameColor = nil
+	} else {
+		profile.UsernameColor = &color
 	}
 
 	if err := s.profileRepo.Update(ctx, profile); err != nil {

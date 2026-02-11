@@ -2,6 +2,7 @@ package v1
 
 import (
 	"errors"
+	"regexp"
 	"strconv"
 
 	"github.com/go-playground/validator/v10"
@@ -11,6 +12,8 @@ import (
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/logger"
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/service"
 )
+
+var hexColorRegex = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
 
 // PremiumHandler handles premium feature requests
 type PremiumHandler struct {
@@ -70,6 +73,58 @@ func (h *PremiumHandler) UpdateFlair(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(dto.SuccessResponse{Success: true, Message: "Flair updated"})
+}
+
+// UpdateUsernameColor handles PATCH /api/v1/me/username-color
+func (h *PremiumHandler) UpdateUsernameColor(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+
+	var req dto.UpdateUsernameColorRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error:   "bad_request",
+			Message: "Invalid request body",
+			Code:    400,
+		})
+	}
+
+	if err := h.validator.Struct(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error:   "validation_error",
+			Message: "Color is required",
+			Code:    400,
+		})
+	}
+
+	if req.Color != "none" && !hexColorRegex.MatchString(req.Color) {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error:   "validation_error",
+			Message: "Invalid color value. Must be 'none' or a valid hex color (e.g. #FF5733)",
+			Code:    400,
+		})
+	}
+
+	err := h.subscriptionService.UpdateUsernameColor(c.Context(), userID, req.Color)
+	if err != nil {
+		if errors.Is(err, service.ErrForbidden) {
+			return c.Status(fiber.StatusForbidden).JSON(dto.ErrorResponse{
+				Error:   "forbidden",
+				Message: "Premium subscription required to set username color",
+				Code:    403,
+			})
+		}
+		logger.FromContext(c.UserContext()).Error("failed to update username color",
+			"error", err.Error(),
+			"user_id", userID,
+		)
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "internal_error",
+			Message: "Failed to update username color",
+			Code:    500,
+		})
+	}
+
+	return c.JSON(dto.SuccessResponse{Success: true, Message: "Username color updated"})
 }
 
 // PriceHistory handles GET /api/v1/marketplace/price-history

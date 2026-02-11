@@ -22,6 +22,14 @@ func (i *Invalidator) InvalidateProfile(ctx context.Context, id string) error {
 	return i.redis.Del(ctx, ProfileKey(id))
 }
 
+// InvalidateProfileByUsername removes a profile cached by username
+func (i *Invalidator) InvalidateProfileByUsername(ctx context.Context, username string) error {
+	if i == nil || i.redis == nil {
+		return nil
+	}
+	return i.redis.Del(ctx, ProfileUsernameKey(username))
+}
+
 // InvalidateListing removes a specific listing from cache
 func (i *Invalidator) InvalidateListing(ctx context.Context, id string) error {
 	if i == nil || i.redis == nil {

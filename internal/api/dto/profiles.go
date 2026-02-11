@@ -13,7 +13,9 @@ type ProfileResponse struct {
 	AverageRating float64   `json:"averageRating"`
 	RatingCount   int       `json:"ratingCount"`
 	IsPremium     bool      `json:"isPremium"`
+	IsAdmin       bool      `json:"isAdmin"`
 	ProfileFlair  string    `json:"profileFlair,omitempty"`
+	UsernameColor string    `json:"usernameColor,omitempty"`
 	Timezone      string    `json:"timezone,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 }

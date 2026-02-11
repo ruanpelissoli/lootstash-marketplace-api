@@ -126,8 +126,9 @@ func (s *Server) setupRoutes() {
 	statsRepo := repository.NewStatsRepository(s.db)
 	billingEventRepo := repository.NewBillingEventRepository(s.db)
 
-	// Create repositories (wishlist)
+	// Create repositories (wishlist, bug reports)
 	wishlistRepo := repository.NewWishlistRepository(s.db)
+	bugReportRepo := repository.NewBugReportRepository(s.db)
 
 	// Create services
 	profileService := service.NewProfileService(profileRepo, s.redis, s.storage)
@@ -189,6 +190,8 @@ func (s *Server) setupRoutes() {
 		},
 	)
 
+	bugReportService := service.NewBugReportService(bugReportRepo)
+
 	// Create handlers
 	profileHandler := v1.NewProfileHandler(profileService)
 	listingHandler := v1.NewListingHandler(listingService)
@@ -203,6 +206,7 @@ func (s *Server) setupRoutes() {
 	webhookHandler := v1.NewWebhookHandler(subscriptionService)
 	wishlistHandler := v1.NewWishlistHandler(wishlistService)
 	premiumHandler := v1.NewPremiumHandler(subscriptionService, listingService)
+	bugReportHandler := v1.NewBugReportHandler(bugReportService)
 
 	// Auth middleware config
 	authConfig := middleware.AuthConfig{
@@ -318,8 +322,17 @@ func (s *Server) setupRoutes() {
 	authenticated.Patch("/wishlist/:id", wishlistHandler.Update)
 	authenticated.Delete("/wishlist/:id", wishlistHandler.Delete)
 
+	// Bug reports - any authenticated user can submit
+	authenticated.Post("/bug-reports", bugReportHandler.Create)
+
+	// Admin-only bug report routes
+	adminRequired := middleware.AdminMiddleware(profileService)
+	authenticated.Get("/bug-reports", adminRequired, bugReportHandler.List)
+	authenticated.Patch("/bug-reports/:id", adminRequired, bugReportHandler.UpdateStatus)
+
 	// Premium feature routes
 	authenticated.Patch("/me/flair", premiumHandler.UpdateFlair)
+	authenticated.Patch("/me/username-color", premiumHandler.UpdateUsernameColor)
 	authenticated.Get("/marketplace/price-history", premiumHandler.PriceHistory)
 	authenticated.Get("/my/listings/count", premiumHandler.ListingCount)
 }

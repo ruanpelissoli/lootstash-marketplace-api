@@ -21,12 +21,14 @@ type Profile struct {
 	BattleTag                      *string    `bun:"battle_tag"`
 	BattleNetLinkedAt              *time.Time `bun:"battle_net_linked_at"`
 	IsPremium                      bool       `bun:"is_premium,default:false"`
+	IsAdmin                        bool       `bun:"is_admin,default:false"`
 	StripeCustomerID               *string    `bun:"stripe_customer_id"`
 	StripeSubscriptionID           *string    `bun:"stripe_subscription_id"`
 	SubscriptionStatus             string     `bun:"subscription_status,default:'none'"`
 	SubscriptionCurrentPeriodEnd   *time.Time `bun:"subscription_current_period_end"`
 	CancelAtPeriodEnd              bool       `bun:"cancel_at_period_end,default:false"`
 	ProfileFlair                   *string    `bun:"profile_flair"`
+	UsernameColor                  *string    `bun:"username_color"`
 	Timezone                       *string    `bun:"timezone"`
 	LastActiveAt                   time.Time  `bun:"last_active_at,nullzero,default:current_timestamp"`
 	CreatedAt                      time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
@@ -66,6 +68,14 @@ func (p *Profile) IsBattleNetLinked() bool {
 func (p *Profile) GetProfileFlair() string {
 	if p.ProfileFlair != nil {
 		return *p.ProfileFlair
+	}
+	return ""
+}
+
+// GetUsernameColor returns the username color or empty string
+func (p *Profile) GetUsernameColor() string {
+	if p.UsernameColor != nil {
+		return *p.UsernameColor
 	}
 	return ""
 }
