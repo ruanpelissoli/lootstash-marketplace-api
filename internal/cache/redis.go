@@ -15,7 +15,11 @@ type RedisClient struct {
 
 // NewRedisClient creates a new Redis client connection
 func NewRedisClient(ctx context.Context, redisURL string) (*RedisClient, error) {
-	opts, err := redis.ParseURL(fmt.Sprintf("redis://%s", redisURL))
+	opts, err := redis.ParseURL(redisURL)
+	if err != nil {
+		// Fallback: try prepending redis:// for bare host:port format
+		opts, err = redis.ParseURL(fmt.Sprintf("redis://%s", redisURL))
+	}
 	if err != nil {
 		// Try as host:port format
 		opts = &redis.Options{

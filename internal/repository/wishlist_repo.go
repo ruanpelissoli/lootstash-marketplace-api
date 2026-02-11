@@ -165,7 +165,6 @@ func (r *wishlistRepository) FindMatchingItems(ctx context.Context, listing *mod
 	query = query.Where("(wi.ladder IS NULL OR wi.ladder = ?)", listing.Ladder)
 	query = query.Where("(wi.hardcore IS NULL OR wi.hardcore = ?)", listing.Hardcore)
 	query = query.Where("(wi.platform IS NULL OR wi.platform = ?)", listing.Platform)
-	query = query.Where("(wi.region IS NULL OR wi.region = ?)", listing.Region)
 	query = query.Where("(wi.category IS NULL OR wi.category = ?)", listing.Category)
 	query = query.Where("(wi.rarity IS NULL OR wi.rarity = ?)", listing.Rarity)
 
