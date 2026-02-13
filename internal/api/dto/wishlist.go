@@ -36,6 +36,7 @@ type UpdateWishlistItemRequest struct {
 // StatCriterionDTO represents a stat filter criterion in API requests/responses
 type StatCriterionDTO struct {
 	Code     string `json:"code" validate:"required"`
+	Name     string `json:"name,omitempty"`
 	MinValue *int   `json:"minValue,omitempty"`
 	MaxValue *int   `json:"maxValue,omitempty"`
 }

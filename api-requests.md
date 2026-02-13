@@ -1467,8 +1467,8 @@ Authorization: Bearer <token>
       "category": "helm",
       "rarity": "unique",
       "statCriteria": [
-        {"code": "all_skills", "minValue": 2},
-        {"code": "life", "minValue": 130, "maxValue": 141}
+        {"code": "all_skills", "name": "All Skills", "minValue": 2},
+        {"code": "life", "name": "Life", "minValue": 130, "maxValue": 141}
       ],
       "game": "diablo2",
       "ladder": true,
@@ -1510,8 +1510,8 @@ Content-Type: application/json
   "category": "helm (optional)",
   "rarity": "unique (optional)",
   "statCriteria": [
-    {"code": "all_skills", "minValue": 2},
-    {"code": "life", "minValue": 130}
+    {"code": "all_skills", "name": "All Skills", "minValue": 2},
+    {"code": "life", "name": "Life", "minValue": 130}
   ],
   "game": "diablo2 (required)",
   "ladder": true,
@@ -1525,6 +1525,7 @@ Content-Type: application/json
 | Field | Type | Description |
 |-------|------|-------------|
 | code | string | Affix code (required, see Affix Codes Reference) |
+| name | string | Display name for the stat (optional, from catalog-api) |
 | minValue | number | Minimum stat value (optional) |
 | maxValue | number | Maximum stat value (optional) |
 
@@ -1547,8 +1548,8 @@ Content-Type: application/json
   "category": "helm",
   "rarity": "unique",
   "statCriteria": [
-    {"code": "all_skills", "minValue": 2},
-    {"code": "life", "minValue": 130}
+    {"code": "all_skills", "name": "All Skills", "minValue": 2},
+    {"code": "life", "name": "Life", "minValue": 130}
   ],
   "game": "diablo2",
   "ladder": true,
@@ -1590,7 +1591,7 @@ Content-Type: application/json
   "category": "charm",
   "rarity": "unique",
   "statCriteria": [
-    {"code": "sorc_skills", "minValue": 3}
+    {"code": "sorc_skills", "name": "Sorceress Skills", "minValue": 3}
   ],
   "game": "diablo2",
   "ladder": null,

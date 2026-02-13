@@ -10,6 +10,7 @@ import (
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/logger"
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/models"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 type listingRepository struct {
@@ -197,8 +198,8 @@ func (r *listingRepository) applyFilters(query *bun.SelectQuery, filter ListingF
 		query = query.Where("l.is_non_rotw = ?", *filter.IsNonRotw)
 	}
 
-	if filter.Platform != "" {
-		query = query.Where("l.platform = ?", filter.Platform)
+	if len(filter.Platforms) > 0 {
+		query = query.Where("l.platforms && ?", pgdialect.Array(filter.Platforms))
 	}
 
 	if filter.Region != "" {

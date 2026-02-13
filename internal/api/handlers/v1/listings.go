@@ -103,7 +103,7 @@ func (h *ListingHandler) Search(c *fiber.Ctx) error {
 		Ladder:           req.Ladder,
 		Hardcore:         req.Hardcore,
 		IsNonRotw:        req.IsNonRotw,
-		Platform:         req.Platform,
+		Platforms:        req.Platforms,
 		Region:           req.Region,
 		Category:         req.Category,
 		Rarity:           req.Rarity,

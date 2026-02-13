@@ -55,7 +55,7 @@ type ListingFilter struct {
 	Ladder           *bool
 	Hardcore         *bool
 	IsNonRotw        *bool
-	Platform         string
+	Platforms        []string
 	Region           string
 	Category         string
 	Rarity           string

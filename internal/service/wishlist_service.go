@@ -68,6 +68,7 @@ func (s *WishlistService) Create(ctx context.Context, userID string, req *dto.Cr
 	for _, sc := range req.StatCriteria {
 		statCriteria = append(statCriteria, models.StatCriterion{
 			Code:     sc.Code,
+			Name:     sc.Name,
 			MinValue: sc.MinValue,
 			MaxValue: sc.MaxValue,
 		})
@@ -143,6 +144,7 @@ func (s *WishlistService) Update(ctx context.Context, id string, userID string, 
 		for _, sc := range req.StatCriteria {
 			statCriteria = append(statCriteria, models.StatCriterion{
 				Code:     sc.Code,
+				Name:     sc.Name,
 				MinValue: sc.MinValue,
 				MaxValue: sc.MaxValue,
 			})
@@ -429,6 +431,7 @@ func (s *WishlistService) ToResponse(item *models.WishlistItem) *dto.WishlistIte
 	for _, sc := range item.StatCriteria {
 		statCriteria = append(statCriteria, dto.StatCriterionDTO{
 			Code:     sc.Code,
+			Name:     sc.Name,
 			MinValue: sc.MinValue,
 			MaxValue: sc.MaxValue,
 		})

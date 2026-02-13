@@ -32,7 +32,7 @@ type Listing struct {
 	Ladder      bool            `bun:"ladder,default:true"`
 	Hardcore    bool            `bun:"hardcore,default:false"`
 	IsNonRotw   bool            `bun:"is_non_rotw,default:false"`
-	Platform    string          `bun:"platform,default:'pc'"`
+	Platforms   []string        `bun:"platforms,array,default:'{pc}'"`
 	Region         string          `bun:"region,default:'americas'"`
 	SellerTimezone *string         `bun:"seller_timezone"`
 	Status         string          `bun:"status,notnull,default:'active'"`

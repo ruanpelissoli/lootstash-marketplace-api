@@ -22,7 +22,7 @@ type ListingCardResponse struct {
 	Ladder        bool             `json:"ladder"`
 	Hardcore      bool             `json:"hardcore"`
 	IsNonRotw     bool             `json:"isNonRotw"`
-	Platform      string           `json:"platform"`
+	Platforms     []string         `json:"platforms"`
 	Region        string           `json:"region"`
 	SellerTimezone string          `json:"sellerTimezone,omitempty"`
 	Views         int              `json:"views"`
@@ -53,7 +53,7 @@ type ListingResponse struct {
 	Ladder         bool             `json:"ladder"`
 	Hardcore       bool             `json:"hardcore"`
 	IsNonRotw      bool             `json:"isNonRotw"`
-	Platform       string           `json:"platform"`
+	Platforms      []string         `json:"platforms"`
 	Region         string           `json:"region"`
 	SellerTimezone string           `json:"sellerTimezone,omitempty"`
 	Status         string           `json:"status"`
@@ -90,7 +90,7 @@ type CreateListingRequest struct {
 	Ladder       bool            `json:"ladder"`
 	Hardcore     bool            `json:"hardcore"`
 	IsNonRotw    bool            `json:"isNonRotw"`
-	Platform     string          `json:"platform" validate:"required,oneof=pc xbox playstation switch"`
+	Platforms    []string        `json:"platforms" validate:"required,min=1,dive,oneof=pc xbox playstation switch"`
 	Region       string          `json:"region" validate:"required,oneof=americas europe asia"`
 }
 
@@ -110,7 +110,7 @@ type ListingFilterRequest struct {
 	Ladder           *bool           `query:"ladder"`
 	Hardcore         *bool           `query:"hardcore"`
 	IsNonRotw        *bool           `query:"isNonRotw"`
-	Platform         string          `query:"platform"`
+	Platforms        string          `query:"platforms"`
 	Region           string          `query:"region"`
 	Category         string          `query:"category"`
 	Rarity           string          `query:"rarity"`
@@ -161,7 +161,7 @@ type SearchListingsRequest struct {
 	Ladder           *bool             `json:"ladder"`
 	Hardcore         *bool             `json:"hardcore"`
 	IsNonRotw        *bool             `json:"nonRotw"`
-	Platform         string            `json:"platform"`
+	Platforms        []string          `json:"platforms"`
 	Region           string            `json:"region"`
 	Category         string            `json:"category"`
 	Rarity           string            `json:"rarity"`

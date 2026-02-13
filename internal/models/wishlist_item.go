@@ -34,6 +34,7 @@ type WishlistItem struct {
 // StatCriterion represents a single stat filter criterion
 type StatCriterion struct {
 	Code     string `json:"code"`
+	Name     string `json:"name,omitempty"`
 	MinValue *int   `json:"minValue,omitempty"`
 	MaxValue *int   `json:"maxValue,omitempty"`
 }

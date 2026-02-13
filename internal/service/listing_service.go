@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -89,6 +90,16 @@ func (s *ListingService) Create(ctx context.Context, sellerID string, req *dto.C
 		}
 	}
 
+	// Deduplicate platforms
+	seen := make(map[string]bool)
+	var uniquePlatforms []string
+	for _, p := range req.Platforms {
+		if !seen[p] {
+			seen[p] = true
+			uniquePlatforms = append(uniquePlatforms, p)
+		}
+	}
+
 	listing := &models.Listing{
 		ID:             uuid.New().String(),
 		SellerID:       sellerID,
@@ -104,7 +115,7 @@ func (s *ListingService) Create(ctx context.Context, sellerID string, req *dto.C
 		Ladder:         req.Ladder,
 		Hardcore:       req.Hardcore,
 		IsNonRotw:      req.IsNonRotw,
-		Platform:       req.Platform,
+		Platforms:      uniquePlatforms,
 		Region:         req.Region,
 		SellerTimezone: profile.Timezone,
 		Status:         "active",
@@ -324,7 +335,7 @@ func (s *ListingService) List(ctx context.Context, req *dto.ListingFilterRequest
 		Ladder:           req.Ladder,
 		Hardcore:         req.Hardcore,
 		IsNonRotw:        req.IsNonRotw,
-		Platform:         req.Platform,
+		Platforms:        parsePlatforms(req.Platforms),
 		Region:           req.Region,
 		Category:         req.Category,
 		Rarity:           req.Rarity,
@@ -371,7 +382,7 @@ func (s *ListingService) ToCardResponse(listing *models.Listing) *dto.ListingCar
 		Ladder:         listing.Ladder,
 		Hardcore:       listing.Hardcore,
 		IsNonRotw:      listing.IsNonRotw,
-		Platform:       listing.Platform,
+		Platforms:      listing.Platforms,
 		Region:         listing.Region,
 		SellerTimezone: listing.GetSellerTimezone(),
 		Views:          listing.Views,
@@ -409,7 +420,7 @@ func (s *ListingService) ToResponse(listing *models.Listing) *dto.ListingRespons
 		Ladder:         listing.Ladder,
 		Hardcore:       listing.Hardcore,
 		IsNonRotw:      listing.IsNonRotw,
-		Platform:       listing.Platform,
+		Platforms:      listing.Platforms,
 		Region:         listing.Region,
 		SellerTimezone: listing.GetSellerTimezone(),
 		Status:         listing.Status,
@@ -602,6 +613,22 @@ func (s *ListingService) GetRecentListings(ctx context.Context) ([]dto.ListingCa
 	}
 
 	return results, nil
+}
+
+// parsePlatforms splits a comma-separated platform string into a slice
+func parsePlatforms(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	var result []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
 }
 
 // WarmRecentListings populates the home:recent cache on startup
