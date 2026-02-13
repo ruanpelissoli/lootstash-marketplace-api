@@ -137,8 +137,8 @@ func (r *wishlistRepository) FindMatchingItems(ctx context.Context, listing *mod
 	fmt.Printf("[WISHLIST-REPO] FindMatchingItems called\n")
 	fmt.Printf("[WISHLIST-REPO] Listing: id=%s name=%s name_lower=%s game=%s seller=%s\n",
 		listing.ID, listing.Name, strings.ToLower(listing.Name), listing.Game, listing.SellerID)
-	fmt.Printf("[WISHLIST-REPO] Filters: ladder=%v hardcore=%v platform=%s region=%s category=%s rarity=%s\n",
-		listing.Ladder, listing.Hardcore, listing.Platform, listing.Region, listing.Category, listing.Rarity)
+	fmt.Printf("[WISHLIST-REPO] Filters: ladder=%v hardcore=%v is_non_rotw=%v platform=%s region=%s category=%s rarity=%s\n",
+		listing.Ladder, listing.Hardcore, listing.IsNonRotw, listing.Platform, listing.Region, listing.Category, listing.Rarity)
 
 	log.Info("searching for matching wishlist items",
 		"listing_id", listing.ID,
@@ -164,6 +164,7 @@ func (r *wishlistRepository) FindMatchingItems(ctx context.Context, listing *mod
 	// NULL filter fields act as wildcards — only filter when the wishlist field is NOT NULL
 	query = query.Where("(wi.ladder IS NULL OR wi.ladder = ?)", listing.Ladder)
 	query = query.Where("(wi.hardcore IS NULL OR wi.hardcore = ?)", listing.Hardcore)
+	query = query.Where("(wi.is_non_rotw IS NULL OR wi.is_non_rotw = ?)", listing.IsNonRotw)
 	query = query.Where("(wi.platform IS NULL OR wi.platform = ?)", listing.Platform)
 	query = query.Where("(wi.category IS NULL OR wi.category = ?)", listing.Category)
 	query = query.Where("(wi.rarity IS NULL OR wi.rarity = ?)", listing.Rarity)

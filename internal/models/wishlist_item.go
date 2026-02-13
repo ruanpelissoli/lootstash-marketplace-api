@@ -20,6 +20,7 @@ type WishlistItem struct {
 	Game         string          `bun:"game,default:'diablo2'"`
 	Ladder       *bool           `bun:"ladder"`
 	Hardcore     *bool           `bun:"hardcore"`
+	IsNonRotw    *bool           `bun:"is_non_rotw"`
 	Platform     *string         `bun:"platform"`
 	Region       *string         `bun:"region"`
 	Status       string          `bun:"status,default:'active'"`

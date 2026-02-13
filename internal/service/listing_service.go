@@ -19,9 +19,10 @@ import (
 )
 
 const (
-	listingCacheTTL    = 15 * time.Minute
-	listingDTOCacheTTL = 1 * time.Hour
-	maxRecentListings  = 20
+	listingCacheTTL      = 15 * time.Minute
+	listingDTOCacheTTL   = 1 * time.Hour
+	maxRecentListings    = 20
+	FreeListingLimit     = 10
 )
 
 // ListingService handles listing business logic
@@ -81,8 +82,8 @@ func (s *ListingService) Create(ctx context.Context, sellerID string, req *dto.C
 			log.Error("failed to count active listings", "error", err.Error(), "seller_id", sellerID)
 			return nil, err
 		}
-		log.Debug("checking listing limit for free user", "current_count", count, "limit", 3)
-		if count >= 3 {
+		log.Debug("checking listing limit for free user", "current_count", count, "limit", FreeListingLimit)
+		if count >= FreeListingLimit {
 			log.Warn("listing limit reached for free user", "seller_id", sellerID, "count", count)
 			return nil, ErrListingLimitReached
 		}
@@ -102,6 +103,7 @@ func (s *ListingService) Create(ctx context.Context, sellerID string, req *dto.C
 		Game:           req.Game,
 		Ladder:         req.Ladder,
 		Hardcore:       req.Hardcore,
+		IsNonRotw:      req.IsNonRotw,
 		Platform:       req.Platform,
 		Region:         req.Region,
 		SellerTimezone: profile.Timezone,
@@ -321,6 +323,7 @@ func (s *ListingService) List(ctx context.Context, req *dto.ListingFilterRequest
 		Game:             req.Game,
 		Ladder:           req.Ladder,
 		Hardcore:         req.Hardcore,
+		IsNonRotw:        req.IsNonRotw,
 		Platform:         req.Platform,
 		Region:           req.Region,
 		Category:         req.Category,
@@ -367,6 +370,7 @@ func (s *ListingService) ToCardResponse(listing *models.Listing) *dto.ListingCar
 		Game:           listing.Game,
 		Ladder:         listing.Ladder,
 		Hardcore:       listing.Hardcore,
+		IsNonRotw:      listing.IsNonRotw,
 		Platform:       listing.Platform,
 		Region:         listing.Region,
 		SellerTimezone: listing.GetSellerTimezone(),
@@ -404,6 +408,7 @@ func (s *ListingService) ToResponse(listing *models.Listing) *dto.ListingRespons
 		Game:           listing.Game,
 		Ladder:         listing.Ladder,
 		Hardcore:       listing.Hardcore,
+		IsNonRotw:      listing.IsNonRotw,
 		Platform:       listing.Platform,
 		Region:         listing.Region,
 		SellerTimezone: listing.GetSellerTimezone(),

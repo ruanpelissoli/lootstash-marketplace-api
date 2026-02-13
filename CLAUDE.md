@@ -240,7 +240,7 @@ helms, body armor, weapons, shields, gloves, boots, belts, amulets, rings, charm
 
 - **Affix filtering**: Marketplace supports JSONB queries on listing stats with code/minValue/maxValue
 - **Wishlist matching**: New listings trigger async matching against user wishlists → notifications
-- **Premium gating**: Free users limited to 3 active listings. Premium unlocks unlimited listings, wishlist, profile flair, price history
+- **Premium gating**: Free users limited to 10 active listings. Premium unlocks unlimited listings, wishlist, profile flair, price history
 - **Notification system**: Polymorphic references (`reference_type` + `reference_id`) to link any entity
 - **Game registry**: Pluggable game handler system (`internal/games/`) — currently only D2 implemented
 - **RLS**: All Supabase tables use Row Level Security; service role bypasses for background jobs

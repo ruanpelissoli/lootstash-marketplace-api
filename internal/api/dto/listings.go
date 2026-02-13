@@ -21,6 +21,7 @@ type ListingCardResponse struct {
 	Game          string           `json:"game"`
 	Ladder        bool             `json:"ladder"`
 	Hardcore      bool             `json:"hardcore"`
+	IsNonRotw     bool             `json:"isNonRotw"`
 	Platform      string           `json:"platform"`
 	Region        string           `json:"region"`
 	SellerTimezone string          `json:"sellerTimezone,omitempty"`
@@ -51,6 +52,7 @@ type ListingResponse struct {
 	Game           string           `json:"game"`
 	Ladder         bool             `json:"ladder"`
 	Hardcore       bool             `json:"hardcore"`
+	IsNonRotw      bool             `json:"isNonRotw"`
 	Platform       string           `json:"platform"`
 	Region         string           `json:"region"`
 	SellerTimezone string           `json:"sellerTimezone,omitempty"`
@@ -87,6 +89,7 @@ type CreateListingRequest struct {
 	Game         string          `json:"game" validate:"required,min=1,max=20"`
 	Ladder       bool            `json:"ladder"`
 	Hardcore     bool            `json:"hardcore"`
+	IsNonRotw    bool            `json:"isNonRotw"`
 	Platform     string          `json:"platform" validate:"required,oneof=pc xbox playstation switch"`
 	Region       string          `json:"region" validate:"required,oneof=americas europe asia"`
 }
@@ -106,6 +109,7 @@ type ListingFilterRequest struct {
 	Game             string          `query:"game"`
 	Ladder           *bool           `query:"ladder"`
 	Hardcore         *bool           `query:"hardcore"`
+	IsNonRotw        *bool           `query:"isNonRotw"`
 	Platform         string          `query:"platform"`
 	Region           string          `query:"region"`
 	Category         string          `query:"category"`
@@ -156,6 +160,7 @@ type SearchListingsRequest struct {
 	Game             string            `json:"game"`
 	Ladder           *bool             `json:"ladder"`
 	Hardcore         *bool             `json:"hardcore"`
+	IsNonRotw        *bool             `json:"nonRotw"`
 	Platform         string            `json:"platform"`
 	Region           string            `json:"region"`
 	Category         string            `json:"category"`

@@ -54,6 +54,7 @@ type ListingFilter struct {
 	Game             string
 	Ladder           *bool
 	Hardcore         *bool
+	IsNonRotw        *bool
 	Platform         string
 	Region           string
 	Category         string

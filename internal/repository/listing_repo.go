@@ -193,6 +193,10 @@ func (r *listingRepository) applyFilters(query *bun.SelectQuery, filter ListingF
 		query = query.Where("l.hardcore = ?", *filter.Hardcore)
 	}
 
+	if filter.IsNonRotw != nil {
+		query = query.Where("l.is_non_rotw = ?", *filter.IsNonRotw)
+	}
+
 	if filter.Platform != "" {
 		query = query.Where("l.platform = ?", filter.Platform)
 	}

@@ -12,6 +12,7 @@ type CreateWishlistItemRequest struct {
 	Game         string              `json:"game" validate:"required,min=1,max=20"`
 	Ladder       *bool               `json:"ladder,omitempty"`
 	Hardcore     *bool               `json:"hardcore,omitempty"`
+	IsNonRotw    *bool               `json:"isNonRotw,omitempty"`
 	Platform     *string             `json:"platform,omitempty" validate:"omitempty,max=20"`
 	Region       *string             `json:"region,omitempty" validate:"omitempty,max=20"`
 }
@@ -26,6 +27,7 @@ type UpdateWishlistItemRequest struct {
 	Game         *string             `json:"game,omitempty" validate:"omitempty,min=1,max=20"`
 	Ladder       *bool               `json:"ladder,omitempty"`
 	Hardcore     *bool               `json:"hardcore,omitempty"`
+	IsNonRotw    *bool               `json:"isNonRotw,omitempty"`
 	Platform     *string             `json:"platform,omitempty" validate:"omitempty,max=20"`
 	Region       *string             `json:"region,omitempty" validate:"omitempty,max=20"`
 	Status       *string             `json:"status,omitempty" validate:"omitempty,oneof=active paused"`
@@ -50,6 +52,7 @@ type WishlistItemResponse struct {
 	Game         string             `json:"game"`
 	Ladder       *bool              `json:"ladder,omitempty"`
 	Hardcore     *bool              `json:"hardcore,omitempty"`
+	IsNonRotw    *bool              `json:"isNonRotw,omitempty"`
 	Platform     *string            `json:"platform,omitempty"`
 	Region       *string            `json:"region,omitempty"`
 	Status       string             `json:"status"`

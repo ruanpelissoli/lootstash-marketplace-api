@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -101,6 +102,7 @@ func (h *ListingHandler) Search(c *fiber.Ctx) error {
 		Game:             req.Game,
 		Ladder:           req.Ladder,
 		Hardcore:         req.Hardcore,
+		IsNonRotw:        req.IsNonRotw,
 		Platform:         req.Platform,
 		Region:           req.Region,
 		Category:         req.Category,
@@ -198,7 +200,7 @@ func (h *ListingHandler) Create(c *fiber.Ctx) error {
 		if errors.Is(err, service.ErrListingLimitReached) {
 			return c.Status(fiber.StatusForbidden).JSON(dto.ErrorResponse{
 				Error:   "listing_limit_reached",
-				Message: "Free users can have at most 3 active listings. Upgrade to premium for unlimited listings.",
+				Message: fmt.Sprintf("Free users can have at most %d active listings. Upgrade to premium for unlimited listings.", service.FreeListingLimit),
 				Code:    403,
 			})
 		}
