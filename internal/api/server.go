@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -137,7 +138,8 @@ func (s *Server) setupRoutes() {
 	listingService := service.NewListingService(listingRepo, profileService, s.redis)
 	wishlistService := service.NewWishlistService(wishlistRepo, profileService, notificationService)
 	listingService.SetWishlistService(wishlistService)
-	statsService := service.NewStatsService(statsRepo)
+	statsService := service.NewStatsService(statsRepo, s.redis)
+	listingService.SetStatsService(statsService)
 	offerService := service.NewOfferService(
 		s.db,
 		offerRepo,
@@ -162,6 +164,8 @@ func (s *Server) setupRoutes() {
 		s.redis,
 		s.config.SupabaseURL,
 	)
+	offerService.SetStatsService(statsService)
+	tradeService.SetStatsService(statsService)
 	chatService := service.NewChatService(chatRepo, messageRepo, tradeRepo, profileService, notificationService)
 	ratingService := service.NewRatingService(ratingRepo, transactionRepo, profileService, notificationService)
 	battleNetService := service.NewBattleNetService(
@@ -200,7 +204,7 @@ func (s *Server) setupRoutes() {
 	chatHandler := v1.NewChatHandler(chatService)
 	notificationHandler := v1.NewNotificationHandler(notificationService)
 	ratingHandler := v1.NewRatingHandler(ratingService)
-	statsHandler := v1.NewStatsHandler(statsService)
+	statsHandler := v1.NewStatsHandler(statsService, listingService)
 	battleNetHandler := v1.NewBattleNetHandler(battleNetService)
 	subscriptionHandler := v1.NewSubscriptionHandler(subscriptionService)
 	webhookHandler := v1.NewWebhookHandler(subscriptionService)
@@ -243,6 +247,7 @@ func (s *Server) setupRoutes() {
 	apiV1.Get("/profiles/:id/sales", profileHandler.GetSales)
 	apiV1.Get("/decline-reasons", offerHandler.GetDeclineReasons)
 	apiV1.Get("/marketplace/stats", statsHandler.GetMarketplaceStats)
+	apiV1.Get("/marketplace/recent", statsHandler.GetRecentListings)
 
 	// Stripe webhook (no auth required)
 	apiV1.Post("/webhooks/stripe", webhookHandler.StripeWebhook)
@@ -335,6 +340,15 @@ func (s *Server) setupRoutes() {
 	authenticated.Patch("/me/username-color", premiumHandler.UpdateUsernameColor)
 	authenticated.Get("/marketplace/price-history", premiumHandler.PriceHistory)
 	authenticated.Get("/my/listings/count", premiumHandler.ListingCount)
+
+	// Cache warming on startup (non-blocking)
+	go func() {
+		ctx := context.Background()
+		statsService.WarmHomeStats(ctx)
+		applogger.Log.Info("warmed home:stats cache")
+		listingService.WarmRecentListings(ctx)
+		applogger.Log.Info("warmed home:recent cache")
+	}()
 }
 
 // Start starts the HTTP server

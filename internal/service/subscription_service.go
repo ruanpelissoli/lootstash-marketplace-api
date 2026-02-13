@@ -128,6 +128,7 @@ func (s *SubscriptionService) CreateCheckoutSession(ctx context.Context, userID 
 			return nil, err
 		}
 		_ = s.invalidator.InvalidateProfile(ctx, userID)
+		_ = s.invalidator.InvalidateProfileDTO(ctx, userID)
 	}
 
 	// Create checkout session
@@ -197,6 +198,7 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, userID str
 		return err
 	}
 	_ = s.invalidator.InvalidateProfile(ctx, userID)
+	_ = s.invalidator.InvalidateProfileDTO(ctx, userID)
 
 	return nil
 }
@@ -326,6 +328,7 @@ func (s *SubscriptionService) handleCheckoutCompleted(ctx context.Context, event
 		return err
 	}
 	_ = s.invalidator.InvalidateProfile(ctx, userID)
+	_ = s.invalidator.InvalidateProfileDTO(ctx, userID)
 
 	return nil
 }
@@ -354,6 +357,7 @@ func (s *SubscriptionService) handleSubscriptionUpdated(ctx context.Context, eve
 		return err
 	}
 	_ = s.invalidator.InvalidateProfile(ctx, profile.ID)
+	_ = s.invalidator.InvalidateProfileDTO(ctx, profile.ID)
 
 	return nil
 }
@@ -381,6 +385,7 @@ func (s *SubscriptionService) handleSubscriptionDeleted(ctx context.Context, eve
 		return err
 	}
 	_ = s.invalidator.InvalidateProfile(ctx, profile.ID)
+	_ = s.invalidator.InvalidateProfileDTO(ctx, profile.ID)
 
 	// Best-effort cleanup: delete all wishlist items
 	if deletedCount, err := s.wishlistRepo.DeleteAllByUserID(ctx, profile.ID); err != nil {
@@ -462,6 +467,7 @@ func (s *SubscriptionService) handleInvoicePaymentSucceeded(ctx context.Context,
 			return err
 		}
 		_ = s.invalidator.InvalidateProfile(ctx, profile.ID)
+		_ = s.invalidator.InvalidateProfileDTO(ctx, profile.ID)
 	}
 
 	return nil
@@ -510,6 +516,7 @@ func (s *SubscriptionService) handleInvoicePaymentFailed(ctx context.Context, ev
 		return err
 	}
 	_ = s.invalidator.InvalidateProfile(ctx, profile.ID)
+	_ = s.invalidator.InvalidateProfileDTO(ctx, profile.ID)
 
 	return nil
 }
@@ -535,6 +542,7 @@ func (s *SubscriptionService) UpdateFlair(ctx context.Context, userID string, fl
 		return err
 	}
 	_ = s.invalidator.InvalidateProfile(ctx, userID)
+	_ = s.invalidator.InvalidateProfileDTO(ctx, userID)
 
 	return nil
 }
@@ -560,6 +568,7 @@ func (s *SubscriptionService) UpdateUsernameColor(ctx context.Context, userID st
 		return err
 	}
 	_ = s.invalidator.InvalidateProfile(ctx, userID)
+	_ = s.invalidator.InvalidateProfileDTO(ctx, userID)
 
 	return nil
 }

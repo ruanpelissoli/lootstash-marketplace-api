@@ -22,6 +22,7 @@ type OfferService struct {
 	notificationService *NotificationService
 	profileService      *ProfileService
 	listingService      *ListingService
+	statsService        *StatsService
 	redis               *cache.RedisClient
 	invalidator         *cache.Invalidator
 }
@@ -50,6 +51,11 @@ func NewOfferService(
 		redis:               redis,
 		invalidator:         cache.NewInvalidator(redis),
 	}
+}
+
+// SetStatsService sets the stats service for cache refresh on offer events
+func (s *OfferService) SetStatsService(ss *StatsService) {
+	s.statsService = ss
 }
 
 // Create creates a new offer
@@ -185,6 +191,11 @@ func (s *OfferService) Accept(ctx context.Context, id string, userID string) (*m
 
 	// Notify the requester
 	_ = s.notificationService.NotifyOfferAccepted(ctx, offer.RequesterID, offer.ID, offer.Listing.Name)
+
+	// Refresh home stats (avg response time changed)
+	if s.statsService != nil {
+		go s.statsService.RefreshHomeStats(context.Background())
+	}
 
 	return offer, trade, chat, nil
 }

@@ -54,6 +54,22 @@ func (i *Invalidator) InvalidateDeclineReasons(ctx context.Context) error {
 	return i.redis.Del(ctx, DeclineReasonsKey())
 }
 
+// InvalidateProfileDTO removes a profile DTO cache entry
+func (i *Invalidator) InvalidateProfileDTO(ctx context.Context, id string) error {
+	if i == nil || i.redis == nil {
+		return nil
+	}
+	return i.redis.Del(ctx, ProfileDTOKey(id))
+}
+
+// InvalidateListingDTO removes a listing DTO cache entry
+func (i *Invalidator) InvalidateListingDTO(ctx context.Context, id string) error {
+	if i == nil || i.redis == nil {
+		return nil
+	}
+	return i.redis.Del(ctx, ListingDTOKey(id))
+}
+
 // InvalidateAllListings removes all listing-related cache entries
 func (i *Invalidator) InvalidateAllListings(ctx context.Context) error {
 	if i == nil || i.redis == nil {

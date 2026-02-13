@@ -66,6 +66,9 @@ func (s *ProfileService) GetByID(ctx context.Context, id string) (*models.Profil
 		_ = s.redis.Set(ctx, cacheKey, string(data), profileCacheTTL)
 	}
 
+	// Cache DTO version for frontend direct access
+	s.CacheProfileDTO(ctx, profile)
+
 	return profile, nil
 }
 
@@ -127,6 +130,7 @@ func (s *ProfileService) Update(ctx context.Context, userID string, req *dto.Upd
 
 	// Invalidate cache
 	_ = s.invalidator.InvalidateProfile(ctx, userID)
+	_ = s.invalidator.InvalidateProfileDTO(ctx, userID)
 	if profile.Username != "" {
 		_ = s.invalidator.InvalidateProfileByUsername(ctx, strings.ToLower(profile.Username))
 	}
@@ -214,6 +218,7 @@ func (s *ProfileService) UploadProfilePicture(ctx context.Context, userID string
 
 	// Invalidate cache
 	_ = s.invalidator.InvalidateProfile(ctx, userID)
+	_ = s.invalidator.InvalidateProfileDTO(ctx, userID)
 	if profile.Username != "" {
 		_ = s.invalidator.InvalidateProfileByUsername(ctx, strings.ToLower(profile.Username))
 	}
@@ -381,6 +386,14 @@ type offeredItem struct {
 	Name     string `json:"name"`
 	Quantity int    `json:"quantity"`
 	ImageURL string `json:"imageUrl,omitempty"`
+}
+
+// CacheProfileDTO caches the profile as a DTO (camelCase JSON) for frontend direct access
+func (s *ProfileService) CacheProfileDTO(ctx context.Context, profile *models.Profile) {
+	resp := s.ToResponse(profile)
+	if data, err := json.Marshal(resp); err == nil {
+		_ = s.redis.Set(ctx, cache.ProfileDTOKey(profile.ID), string(data), profileCacheTTL)
+	}
 }
 
 // transformOfferedItems converts raw JSON offered items to DTOs

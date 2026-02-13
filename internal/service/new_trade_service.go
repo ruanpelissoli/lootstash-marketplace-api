@@ -27,6 +27,7 @@ type TradeServiceNew struct {
 	notificationService *NotificationService
 	profileService      *ProfileService
 	listingService      *ListingService
+	statsService        *StatsService
 	redis               *cache.RedisClient
 	invalidator         *cache.Invalidator
 	supabaseURL         string
@@ -60,6 +61,11 @@ func NewTradeServiceNew(
 		invalidator:         cache.NewInvalidator(redis),
 		supabaseURL:         strings.TrimSuffix(supabaseURL, "/"),
 	}
+}
+
+// SetStatsService sets the stats service for cache refresh on trade events
+func (s *TradeServiceNew) SetStatsService(ss *StatsService) {
+	s.statsService = ss
 }
 
 // offeredItemRaw represents the raw offered item from JSON
@@ -230,6 +236,14 @@ func (s *TradeServiceNew) Complete(ctx context.Context, id string, userID string
 	}
 	_ = s.notificationService.NotifyTradeCompleted(ctx, recipientID, trade.ID, listing.Name)
 
+	// Invalidate listing DTO cache (status changed to completed)
+	_ = s.invalidator.InvalidateListingDTO(ctx, trade.ListingID)
+
+	// Refresh home stats (tradesToday + activeListings changed)
+	if s.statsService != nil {
+		go s.statsService.RefreshHomeStats(context.Background())
+	}
+
 	return trade, transaction, nil
 }
 
@@ -278,6 +292,14 @@ func (s *TradeServiceNew) Cancel(ctx context.Context, id string, userID string, 
 		recipientID = trade.SellerID
 	}
 	_ = s.notificationService.NotifyTradeCancelled(ctx, recipientID, trade.ID, listing.Name)
+
+	// Invalidate listing DTO cache (status may have changed back to active)
+	_ = s.invalidator.InvalidateListingDTO(ctx, trade.ListingID)
+
+	// Refresh home stats (activeListings may have changed)
+	if s.statsService != nil {
+		go s.statsService.RefreshHomeStats(context.Background())
+	}
 
 	return trade, nil
 }

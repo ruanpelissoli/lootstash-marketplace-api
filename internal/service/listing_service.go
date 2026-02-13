@@ -19,7 +19,9 @@ import (
 )
 
 const (
-	listingCacheTTL = 15 * time.Minute
+	listingCacheTTL    = 15 * time.Minute
+	listingDTOCacheTTL = 1 * time.Hour
+	maxRecentListings  = 20
 )
 
 // ListingService handles listing business logic
@@ -29,6 +31,7 @@ type ListingService struct {
 	redis            *cache.RedisClient
 	invalidator      *cache.Invalidator
 	wishlistService  *WishlistService
+	statsService     *StatsService
 }
 
 // NewListingService creates a new listing service
@@ -44,6 +47,11 @@ func NewListingService(repo repository.ListingRepository, profileService *Profil
 // SetWishlistService sets the wishlist service for matching on listing creation
 func (s *ListingService) SetWishlistService(ws *WishlistService) {
 	s.wishlistService = ws
+}
+
+// SetStatsService sets the stats service for cache refresh on listing events
+func (s *ListingService) SetStatsService(ss *StatsService) {
+	s.statsService = ss
 }
 
 // ErrListingLimitReached indicates a free user has reached their active listing limit
@@ -139,6 +147,15 @@ func (s *ListingService) Create(ctx context.Context, sellerID string, req *dto.C
 	)
 	fmt.Printf("[LISTING] Created listing: id=%s name=%s seller=%s\n", listing.ID, listing.Name, sellerID)
 
+	// Push to recent listings cache
+	listing.Seller = profile
+	s.pushToRecentListings(ctx, listing)
+
+	// Refresh home stats (activeListings changed)
+	if s.statsService != nil {
+		go s.statsService.RefreshHomeStats(context.Background())
+	}
+
 	// Trigger async wishlist matching
 	if s.wishlistService != nil {
 		log.Info("triggering async wishlist matching",
@@ -193,6 +210,9 @@ func (s *ListingService) GetByID(ctx context.Context, id string) (*models.Listin
 		_ = s.redis.Set(ctx, cacheKey, string(data), listingCacheTTL)
 	}
 
+	// Cache DTO version for frontend direct access
+	s.cacheListingDTO(ctx, listing)
+
 	return listing, nil
 }
 
@@ -228,6 +248,7 @@ func (s *ListingService) Update(ctx context.Context, id string, userID string, r
 
 	// Invalidate cache
 	_ = s.invalidator.InvalidateListing(ctx, id)
+	_ = s.invalidator.InvalidateListingDTO(ctx, id)
 
 	return listing, nil
 }
@@ -252,6 +273,12 @@ func (s *ListingService) Delete(ctx context.Context, id string, userID string) e
 
 	// Invalidate cache
 	_ = s.invalidator.InvalidateListing(ctx, id)
+	_ = s.invalidator.InvalidateListingDTO(ctx, id)
+
+	// Refresh home stats (activeListings changed)
+	if s.statsService != nil {
+		go s.statsService.RefreshHomeStats(context.Background())
+	}
 
 	return nil
 }
@@ -520,6 +547,7 @@ func (s *ListingService) IncrementViews(ctx context.Context, id string) error {
 	}
 	// Invalidate listing cache
 	_ = s.invalidator.InvalidateListing(ctx, id)
+	_ = s.invalidator.InvalidateListingDTO(ctx, id)
 	return nil
 }
 
@@ -531,5 +559,74 @@ func (s *ListingService) ToDetailResponse(ctx context.Context, listing *models.L
 		ListingResponse: *s.ToResponse(listing),
 		UpdatedAt:       listing.UpdatedAt,
 		TradeCount:      tradeCount,
+	}
+}
+
+// cacheListingDTO caches the listing as a DTO (camelCase JSON) for frontend direct access
+func (s *ListingService) cacheListingDTO(ctx context.Context, listing *models.Listing) {
+	resp := s.ToResponse(listing)
+	if data, err := json.Marshal(resp); err == nil {
+		_ = s.redis.Set(ctx, cache.ListingDTOKey(listing.ID), string(data), listingDTOCacheTTL)
+	}
+}
+
+// pushToRecentListings adds a listing to the home:recent Redis list
+func (s *ListingService) pushToRecentListings(ctx context.Context, listing *models.Listing) {
+	cardResp := s.ToCardResponse(listing)
+	data, err := json.Marshal(cardResp)
+	if err != nil {
+		return
+	}
+	_ = s.redis.LPush(ctx, cache.HomeRecentKey(), string(data))
+	_ = s.redis.LTrim(ctx, cache.HomeRecentKey(), 0, int64(maxRecentListings-1))
+}
+
+// GetRecentListings returns recent listings from the home:recent cache
+func (s *ListingService) GetRecentListings(ctx context.Context) ([]dto.ListingCardResponse, error) {
+	items, err := s.redis.LRange(ctx, cache.HomeRecentKey(), 0, int64(maxRecentListings-1))
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]dto.ListingCardResponse, 0, len(items))
+	for _, item := range items {
+		var card dto.ListingCardResponse
+		if json.Unmarshal([]byte(item), &card) == nil {
+			results = append(results, card)
+		}
+	}
+
+	return results, nil
+}
+
+// WarmRecentListings populates the home:recent cache on startup
+func (s *ListingService) WarmRecentListings(ctx context.Context) {
+	filter := repository.ListingFilter{
+		SortBy:    "created_at",
+		SortOrder: "desc",
+		Limit:     maxRecentListings,
+	}
+
+	listings, _, err := s.repo.List(ctx, filter)
+	if err != nil {
+		logger.Log.Warn("failed to warm recent listings", "error", err.Error())
+		return
+	}
+
+	if len(listings) == 0 {
+		return
+	}
+
+	// Delete existing key
+	_ = s.redis.Del(ctx, cache.HomeRecentKey())
+
+	// Push in reverse order so newest is at index 0
+	for i := len(listings) - 1; i >= 0; i-- {
+		cardResp := s.ToCardResponse(listings[i])
+		data, err := json.Marshal(cardResp)
+		if err != nil {
+			continue
+		}
+		_ = s.redis.LPush(ctx, cache.HomeRecentKey(), string(data))
 	}
 }

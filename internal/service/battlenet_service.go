@@ -161,6 +161,7 @@ func (s *BattleNetService) HandleCallback(ctx context.Context, userID string, co
 
 	// Invalidate profile cache
 	_ = s.invalidator.InvalidateProfile(ctx, userID)
+	_ = s.invalidator.InvalidateProfileDTO(ctx, userID)
 
 	return profile, nil
 }
@@ -189,6 +190,7 @@ func (s *BattleNetService) Unlink(ctx context.Context, userID string) error {
 
 	// Invalidate profile cache
 	_ = s.invalidator.InvalidateProfile(ctx, userID)
+	_ = s.invalidator.InvalidateProfileDTO(ctx, userID)
 
 	return nil
 }

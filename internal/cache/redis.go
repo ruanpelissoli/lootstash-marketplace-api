@@ -107,6 +107,30 @@ func (r *RedisClient) Expire(ctx context.Context, key string, ttl time.Duration)
 	return r.client.Expire(ctx, key, ttl).Err()
 }
 
+// LPush prepends values to a list
+func (r *RedisClient) LPush(ctx context.Context, key string, values ...interface{}) error {
+	if r == nil || r.client == nil {
+		return nil
+	}
+	return r.client.LPush(ctx, key, values...).Err()
+}
+
+// LTrim trims a list to the specified range
+func (r *RedisClient) LTrim(ctx context.Context, key string, start, stop int64) error {
+	if r == nil || r.client == nil {
+		return nil
+	}
+	return r.client.LTrim(ctx, key, start, stop).Err()
+}
+
+// LRange returns a range of elements from a list
+func (r *RedisClient) LRange(ctx context.Context, key string, start, stop int64) ([]string, error) {
+	if r == nil || r.client == nil {
+		return nil, nil
+	}
+	return r.client.LRange(ctx, key, start, stop).Result()
+}
+
 // DeleteByPattern deletes all keys matching a pattern
 func (r *RedisClient) DeleteByPattern(ctx context.Context, pattern string) error {
 	if r == nil || r.client == nil {
