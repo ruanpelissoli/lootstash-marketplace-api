@@ -75,7 +75,7 @@ type CreateListingRequest struct {
 	ItemType     string          `json:"itemType" validate:"required,min=1,max=50"`
 	Rarity       string          `json:"rarity" validate:"required,oneof=normal magic rare unique legendary set runeword"`
 	ImageURL     string          `json:"imageUrl,omitempty" validate:"omitempty,url"`
-	Category     string          `json:"category" validate:"required,min=1,max=50"`
+	Category     string          `json:"category" validate:"omitempty,max=50"`
 	Stats        json.RawMessage `json:"stats,omitempty"`
 	Suffixes     json.RawMessage `json:"suffixes,omitempty"`
 	Runes        json.RawMessage `json:"runes,omitempty"`
