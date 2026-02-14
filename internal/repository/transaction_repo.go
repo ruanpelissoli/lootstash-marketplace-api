@@ -58,16 +58,17 @@ func (r *transactionRepository) GetByTradeID(ctx context.Context, tradeID string
 	return transaction, nil
 }
 
-func (r *transactionRepository) GetTradeVolume(ctx context.Context, itemName string, days int) ([]TradeVolumePoint, error) {
-	var results []TradeVolumePoint
+func (r *transactionRepository) GetPriceHistory(ctx context.Context, itemName string, days int) ([]PriceHistoryRecord, error) {
+	var results []PriceHistoryRecord
 	err := r.db.DB().NewSelect().
 		ColumnExpr("DATE(tx.created_at) AS date").
-		ColumnExpr("COUNT(*) AS volume").
+		ColumnExpr("tx.offered_items").
 		TableExpr("d2.transactions AS tx").
+		Join("INNER JOIN d2.trades AS t ON t.id = tx.trade_id").
 		Where("tx.item_name ILIKE ?", itemName).
 		Where("tx.created_at >= NOW() - INTERVAL '1 day' * ?", days).
-		GroupExpr("DATE(tx.created_at)").
-		OrderExpr("date ASC").
+		Where("t.status = ?", "completed").
+		OrderExpr("date ASC, tx.created_at ASC").
 		Scan(ctx, &results)
 	if err != nil {
 		return nil, err

@@ -15,13 +15,18 @@ type ListingCountResponse struct {
 	Count int `json:"count"`
 }
 
-// TradeVolumePoint represents a single data point of trade volume
-type TradeVolumePoint struct {
-	Date   string `json:"date"`
-	Volume int    `json:"volume"`
+// PriceHistoryTrade represents a single trade's offered items
+type PriceHistoryTrade struct {
+	OfferedItems []OfferedItemResponse `json:"offeredItems"`
 }
 
-// TradeVolumeResponse contains trade volume history data
-type TradeVolumeResponse struct {
-	Data []TradeVolumePoint `json:"data"`
+// PriceHistoryDay represents all trades for a single date
+type PriceHistoryDay struct {
+	Date   string              `json:"date"`
+	Trades []PriceHistoryTrade `json:"trades"`
+}
+
+// PriceHistoryResponse contains price history data grouped by date
+type PriceHistoryResponse struct {
+	Data []PriceHistoryDay `json:"data"`
 }

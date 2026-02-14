@@ -155,6 +155,7 @@ func (s *Server) setupRoutes() {
 		s.db,
 		tradeRepo,
 		listingRepo,
+		offerRepo,
 		transactionRepo,
 		ratingRepo,
 		chatRepo,

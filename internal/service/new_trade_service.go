@@ -21,6 +21,7 @@ type TradeServiceNew struct {
 	db                  *database.BunDB
 	repo                repository.TradeRepository
 	listingRepo         repository.ListingRepository
+	offerRepo           repository.OfferRepository
 	transactionRepo     repository.TransactionRepository
 	ratingRepo          repository.RatingRepository
 	chatRepo            repository.ChatRepository
@@ -38,6 +39,7 @@ func NewTradeServiceNew(
 	db *database.BunDB,
 	repo repository.TradeRepository,
 	listingRepo repository.ListingRepository,
+	offerRepo repository.OfferRepository,
 	transactionRepo repository.TransactionRepository,
 	ratingRepo repository.RatingRepository,
 	chatRepo repository.ChatRepository,
@@ -51,6 +53,7 @@ func NewTradeServiceNew(
 		db:                  db,
 		repo:                repo,
 		listingRepo:         listingRepo,
+		offerRepo:           offerRepo,
 		transactionRepo:     transactionRepo,
 		ratingRepo:          ratingRepo,
 		chatRepo:            chatRepo,
@@ -200,6 +203,13 @@ func (s *TradeServiceNew) Complete(ctx context.Context, id string, userID string
 		return nil, nil, err
 	}
 
+	// Sync offer status to completed
+	if trade.Offer != nil {
+		trade.Offer.Status = "completed"
+		trade.Offer.UpdatedAt = now
+		_ = s.offerRepo.Update(ctx, trade.Offer)
+	}
+
 	// Update listing status to completed
 	listing, err := s.listingRepo.GetByID(ctx, trade.ListingID)
 	if err != nil {
@@ -275,6 +285,13 @@ func (s *TradeServiceNew) Cancel(ctx context.Context, id string, userID string, 
 
 	if err := s.repo.Update(ctx, trade); err != nil {
 		return nil, err
+	}
+
+	// Sync offer status to cancelled
+	if trade.Offer != nil {
+		trade.Offer.Status = "cancelled"
+		trade.Offer.UpdatedAt = now
+		_ = s.offerRepo.Update(ctx, trade.Offer)
 	}
 
 	// Listing becomes visible again - ensure it's active

@@ -152,7 +152,7 @@ type TransactionRepository interface {
 	Create(ctx context.Context, transaction *models.Transaction) error
 	GetByID(ctx context.Context, id string) (*models.Transaction, error)
 	GetByTradeID(ctx context.Context, tradeID string) (*models.Transaction, error)
-	GetTradeVolume(ctx context.Context, itemName string, days int) ([]TradeVolumePoint, error)
+	GetPriceHistory(ctx context.Context, itemName string, days int) ([]PriceHistoryRecord, error)
 	GetSalesBySeller(ctx context.Context, sellerID string, offset, limit int) ([]SaleRecord, int, error)
 }
 
@@ -175,10 +175,10 @@ type SaleRecord struct {
 	ReviewedAt    interface{} // *time.Time
 }
 
-// TradeVolumePoint represents a single day's trade volume
-type TradeVolumePoint struct {
-	Date   string
-	Volume int
+// PriceHistoryRecord represents a single transaction's offered items on a date
+type PriceHistoryRecord struct {
+	Date         string
+	OfferedItems []byte // json.RawMessage
 }
 
 // BillingEventRepository defines the interface for billing event data access

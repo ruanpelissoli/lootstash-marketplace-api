@@ -573,8 +573,8 @@ func (s *SubscriptionService) UpdateUsernameColor(ctx context.Context, userID st
 	return nil
 }
 
-// GetPriceHistory returns trade volume history for an item (premium only)
-func (s *SubscriptionService) GetPriceHistory(ctx context.Context, userID string, itemName string, days int) (*dto.TradeVolumeResponse, error) {
+// GetPriceHistory returns price history for an item grouped by date (premium only)
+func (s *SubscriptionService) GetPriceHistory(ctx context.Context, userID string, itemName string, days int) (*dto.PriceHistoryResponse, error) {
 	profile, err := s.profileRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -588,20 +588,63 @@ func (s *SubscriptionService) GetPriceHistory(ctx context.Context, userID string
 		days = 30
 	}
 
-	volumes, err := s.transactionRepo.GetTradeVolume(ctx, itemName, days)
+	records, err := s.transactionRepo.GetPriceHistory(ctx, itemName, days)
 	if err != nil {
 		return nil, err
 	}
 
-	data := make([]dto.TradeVolumePoint, 0, len(volumes))
-	for _, v := range volumes {
-		data = append(data, dto.TradeVolumePoint{
-			Date:   v.Date,
-			Volume: v.Volume,
+	// Group records by date
+	dayMap := make(map[string]*dto.PriceHistoryDay)
+	var dayOrder []string
+
+	for _, rec := range records {
+		day, exists := dayMap[rec.Date]
+		if !exists {
+			day = &dto.PriceHistoryDay{
+				Date:   rec.Date,
+				Trades: []dto.PriceHistoryTrade{},
+			}
+			dayMap[rec.Date] = day
+			dayOrder = append(dayOrder, rec.Date)
+		}
+
+		trade := dto.PriceHistoryTrade{
+			OfferedItems: transformPriceHistoryItems(rec.OfferedItems),
+		}
+		day.Trades = append(day.Trades, trade)
+	}
+
+	data := make([]dto.PriceHistoryDay, 0, len(dayOrder))
+	for _, date := range dayOrder {
+		data = append(data, *dayMap[date])
+	}
+
+	return &dto.PriceHistoryResponse{Data: data}, nil
+}
+
+// transformPriceHistoryItems converts raw offered items JSON to DTO
+func transformPriceHistoryItems(raw []byte) []dto.OfferedItemResponse {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	var items []offeredItemRaw
+	if err := json.Unmarshal(raw, &items); err != nil {
+		return nil
+	}
+
+	result := make([]dto.OfferedItemResponse, 0, len(items))
+	for _, item := range items {
+		result = append(result, dto.OfferedItemResponse{
+			ID:       item.ID,
+			Name:     item.Name,
+			Type:     item.Type,
+			ImageURL: item.ImageURL,
+			Quantity: item.Quantity,
 		})
 	}
 
-	return &dto.TradeVolumeResponse{Data: data}, nil
+	return result
 }
 
 // ReadBody is a helper for reading the raw body from a request reader
