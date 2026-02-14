@@ -331,6 +331,7 @@ func (s *ListingService) List(ctx context.Context, req *dto.ListingFilterRequest
 	filter := repository.ListingFilter{
 		SellerID:         req.SellerID,
 		Query:            req.Q,
+		CatalogItemID:    req.CatalogItemID,
 		Game:             req.Game,
 		Ladder:           req.Ladder,
 		Hardcore:         req.Hardcore,

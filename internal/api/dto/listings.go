@@ -106,6 +106,7 @@ type UpdateListingRequest struct {
 type ListingFilterRequest struct {
 	SellerID         string          `query:"sellerId"`
 	Q                string          `query:"q"`
+	CatalogItemID    string          `query:"catalogItemId"`
 	Game             string          `query:"game"`
 	Ladder           *bool           `query:"ladder"`
 	Hardcore         *bool           `query:"hardcore"`

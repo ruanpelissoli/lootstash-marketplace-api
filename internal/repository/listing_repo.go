@@ -182,9 +182,11 @@ func (r *listingRepository) applyFilters(query *bun.SelectQuery, filter ListingF
 		query = query.Where("LOWER(l.name) LIKE ?", searchPattern)
 	}
 
-	if filter.Game != "" {
-		query = query.Where("l.game = ?", filter.Game)
+	game := filter.Game
+	if game == "" {
+		game = "diablo2"
 	}
+	query = query.Where("l.game = ?", game)
 
 	if filter.Ladder != nil {
 		query = query.Where("l.ladder = ?", *filter.Ladder)
