@@ -131,6 +131,14 @@ func (r *RedisClient) LRange(ctx context.Context, key string, start, stop int64)
 	return r.client.LRange(ctx, key, start, stop).Result()
 }
 
+// LRem removes elements from a list matching the given value
+func (r *RedisClient) LRem(ctx context.Context, key string, count int64, value interface{}) error {
+	if r == nil || r.client == nil {
+		return nil
+	}
+	return r.client.LRem(ctx, key, count, value).Err()
+}
+
 // DeleteByPattern deletes all keys matching a pattern
 func (r *RedisClient) DeleteByPattern(ctx context.Context, pattern string) error {
 	if r == nil || r.client == nil {

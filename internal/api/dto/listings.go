@@ -104,21 +104,21 @@ type UpdateListingRequest struct {
 
 // ListingFilterRequest represents listing filter parameters
 type ListingFilterRequest struct {
-	SellerID         string          `query:"sellerId"`
-	Q                string          `query:"q"`
-	CatalogItemID    string          `query:"catalogItemId"`
-	Game             string          `query:"game"`
-	Ladder           *bool           `query:"ladder"`
-	Hardcore         *bool           `query:"hardcore"`
-	IsNonRotw        *bool           `query:"isNonRotw"`
-	Platforms        string          `query:"platforms"`
-	Region           string          `query:"region"`
-	Category         string          `query:"category"`
-	Rarity           string          `query:"rarity"`
-	AffixFilters     json.RawMessage `query:"affixFilters"`
-	AskingForFilters json.RawMessage `query:"askingForFilters"`
-	SortBy           string          `query:"sortBy"`
-	SortOrder        string          `query:"sortOrder"`
+	SellerID         string `query:"sellerId"`
+	Q                string `query:"q"`
+	CatalogItemID    string `query:"catalogItemId"`
+	Game             string `query:"game"`
+	Ladder           *bool  `query:"ladder"`
+	Hardcore         *bool  `query:"hardcore"`
+	IsNonRotw        *bool  `query:"isNonRotw"`
+	Platforms        string `query:"platforms"`
+	Region           string `query:"region"`
+	Category         string `query:"category"`
+	Rarity           string `query:"rarity"`
+	AffixFilters     string `query:"affixFilters"`
+	AskingForFilters string `query:"askingForFilters"`
+	SortBy           string `query:"sortBy"`
+	SortOrder        string `query:"sortOrder"`
 	Pagination
 }
 

@@ -288,6 +288,9 @@ func (s *ListingService) Delete(ctx context.Context, id string, userID string) e
 	_ = s.invalidator.InvalidateListing(ctx, id)
 	_ = s.invalidator.InvalidateListingDTO(ctx, id)
 
+	// Remove from recent listings cache
+	s.removeFromRecentListings(ctx, id)
+
 	// Refresh home stats (activeListings changed)
 	if s.statsService != nil {
 		go s.statsService.RefreshHomeStats(context.Background())
@@ -298,11 +301,11 @@ func (s *ListingService) Delete(ctx context.Context, id string, userID string) e
 
 // List retrieves listings with filters
 func (s *ListingService) List(ctx context.Context, req *dto.ListingFilterRequest) ([]*models.Listing, int, error) {
-	// Parse affix filters
+	// Parse affix filters (JSON string from query param)
 	var affixFilters []repository.AffixFilter
-	if len(req.AffixFilters) > 0 {
+	if req.AffixFilters != "" {
 		var dtoFilters []dto.AffixFilter
-		if json.Unmarshal(req.AffixFilters, &dtoFilters) == nil {
+		if json.Unmarshal([]byte(req.AffixFilters), &dtoFilters) == nil {
 			for _, f := range dtoFilters {
 				affixFilters = append(affixFilters, repository.AffixFilter{
 					Code:     f.Code,
@@ -313,11 +316,11 @@ func (s *ListingService) List(ctx context.Context, req *dto.ListingFilterRequest
 		}
 	}
 
-	// Parse asking_for filters
+	// Parse asking_for filters (JSON string from query param)
 	var askingForFilters []repository.AskingForFilter
-	if len(req.AskingForFilters) > 0 {
+	if req.AskingForFilters != "" {
 		var dtoFilters []dto.AskingForFilter
-		if json.Unmarshal(req.AskingForFilters, &dtoFilters) == nil {
+		if json.Unmarshal([]byte(req.AskingForFilters), &dtoFilters) == nil {
 			for _, f := range dtoFilters {
 				askingForFilters = append(askingForFilters, repository.AskingForFilter{
 					Name:        f.Name,
@@ -596,6 +599,22 @@ func (s *ListingService) pushToRecentListings(ctx context.Context, listing *mode
 	}
 	_ = s.redis.LPush(ctx, cache.HomeRecentKey(), string(data))
 	_ = s.redis.LTrim(ctx, cache.HomeRecentKey(), 0, int64(maxRecentListings-1))
+}
+
+// removeFromRecentListings removes a listing from the home:recent Redis list by ID
+func (s *ListingService) removeFromRecentListings(ctx context.Context, id string) {
+	items, err := s.redis.LRange(ctx, cache.HomeRecentKey(), 0, int64(maxRecentListings-1))
+	if err != nil || len(items) == 0 {
+		return
+	}
+
+	for _, item := range items {
+		var card dto.ListingCardResponse
+		if json.Unmarshal([]byte(item), &card) == nil && card.ID == id {
+			_ = s.redis.LRem(ctx, cache.HomeRecentKey(), 1, item)
+			return
+		}
+	}
 }
 
 // GetRecentListings returns recent listings from the home:recent cache
