@@ -73,7 +73,7 @@ type ListingDetailResponse struct {
 type CreateListingRequest struct {
 	Name         string          `json:"name" validate:"required,min=1,max=100"`
 	ItemType     string          `json:"itemType" validate:"required,min=1,max=50"`
-	Rarity       string          `json:"rarity" validate:"required,oneof=normal magic rare unique legendary set runeword"`
+	Rarity       string          `json:"rarity" validate:"required,oneof=normal superior magic rare unique set runeword"`
 	ImageURL     string          `json:"imageUrl,omitempty" validate:"omitempty,url"`
 	Category     string          `json:"category" validate:"omitempty,max=50"`
 	Stats        json.RawMessage `json:"stats,omitempty"`
