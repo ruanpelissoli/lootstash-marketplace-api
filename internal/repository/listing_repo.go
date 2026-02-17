@@ -181,8 +181,8 @@ func (r *listingRepository) applyFilters(query *bun.SelectQuery, filter ListingF
 		query = query.Where("l.listing_type = ?", filter.ListingType)
 	}
 
-	if filter.ServiceType != "" {
-		query = query.Where("l.service_type = ?", filter.ServiceType)
+	if len(filter.ServiceType) > 0 {
+		query = query.Where("l.service_type IN (?)", bun.In(filter.ServiceType))
 	}
 
 	if filter.SellerID != "" {

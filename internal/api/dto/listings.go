@@ -194,6 +194,22 @@ type RuneInfo struct {
 	ImageURL string `json:"imageUrl"`
 }
 
+// SearchServicesRequest represents service listing search/filter parameters via JSON body
+type SearchServicesRequest struct {
+	Q           string   `json:"q"`
+	ServiceType []string `json:"serviceType"`
+	Game        string   `json:"game"`
+	Ladder      *bool    `json:"ladder"`
+	Hardcore    *bool    `json:"hardcore"`
+	IsNonRotw   *bool    `json:"isNonRotw"`
+	Platforms   []string `json:"platforms"`
+	Region      string   `json:"region"`
+	SortBy      string   `json:"sortBy"`
+	SortOrder   string   `json:"sortOrder"`
+	Page        int      `json:"page"`
+	PerPage     int      `json:"perPage"`
+}
+
 // SearchListingsRequest represents listing search/filter parameters via JSON body
 type SearchListingsRequest struct {
 	Q                string            `json:"q"`

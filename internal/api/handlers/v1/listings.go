@@ -348,6 +348,55 @@ func (h *ListingHandler) ListMy(c *fiber.Ctx) error {
 	return c.JSON(dto.NewPaginatedResponse(items, filter.Page, filter.GetLimit(), count))
 }
 
+// SearchServices handles POST /api/v1/services/search
+func (h *ListingHandler) SearchServices(c *fiber.Ctx) error {
+	var req dto.SearchServicesRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error:   "bad_request",
+			Message: "Invalid request body",
+			Code:    400,
+		})
+	}
+
+	pag := dto.Pagination{Page: req.Page, PerPage: req.PerPage}
+
+	repoFilter := repository.ListingFilter{
+		ListingType: "service",
+		ServiceType: req.ServiceType,
+		Query:       req.Q,
+		Game:        req.Game,
+		Ladder:      req.Ladder,
+		Hardcore:    req.Hardcore,
+		IsNonRotw:   req.IsNonRotw,
+		Platforms:   req.Platforms,
+		Region:      req.Region,
+		SortBy:      req.SortBy,
+		SortOrder:   req.SortOrder,
+		Offset:      pag.GetOffset(),
+		Limit:       pag.GetLimit(),
+	}
+
+	listings, count, err := h.service.ListByFilter(c.Context(), repoFilter)
+	if err != nil {
+		logger.FromContext(c.UserContext()).Error("failed to search services",
+			"error", err.Error(),
+		)
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "internal_error",
+			Message: "Failed to search services",
+			Code:    500,
+		})
+	}
+
+	items := make([]dto.ListingCardResponse, 0, len(listings))
+	for _, listing := range listings {
+		items = append(items, *h.service.ToCardResponse(listing))
+	}
+
+	return c.JSON(dto.NewPaginatedResponse(items, req.Page, pag.GetLimit(), count))
+}
+
 // ListServices handles GET /api/v1/services
 func (h *ListingHandler) ListServices(c *fiber.Ctx) error {
 	var filter dto.ServiceFilterRequest
@@ -359,9 +408,14 @@ func (h *ListingHandler) ListServices(c *fiber.Ctx) error {
 		})
 	}
 
+	var serviceTypes []string
+	if filter.ServiceType != "" {
+		serviceTypes = []string{filter.ServiceType}
+	}
+
 	repoFilter := repository.ListingFilter{
 		ListingType: "service",
-		ServiceType: filter.ServiceType,
+		ServiceType: serviceTypes,
 		Query:       filter.Q,
 		Game:        filter.Game,
 		Ladder:      filter.Ladder,

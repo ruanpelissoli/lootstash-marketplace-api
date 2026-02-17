@@ -60,7 +60,7 @@ type ListingFilter struct {
 	Category         string
 	Rarity           string
 	ListingType      string
-	ServiceType      string
+	ServiceType      []string
 	AffixFilters    []AffixFilter
 	AskingForFilter *AskingForFilter
 	SortBy           string
