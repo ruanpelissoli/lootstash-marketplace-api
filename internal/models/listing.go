@@ -7,17 +7,20 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Listing represents an item listing for trade
+// Listing represents an item or service listing for trade
 type Listing struct {
 	bun.BaseModel `bun:"table:d2.listings,alias:l"`
 
 	ID          string          `bun:"id,pk,type:uuid,default:gen_random_uuid()"`
 	SellerID    string          `bun:"seller_id,type:uuid,notnull"`
+	ListingType string          `bun:"listing_type,notnull,default:'item'"`
 	Name        string          `bun:"name,notnull"`
-	ItemType    string          `bun:"item_type,notnull"`
-	Rarity      string          `bun:"rarity,notnull"`
+	ItemType    string          `bun:"item_type"`
+	Rarity      string          `bun:"rarity,nullzero"`
 	ImageURL    *string         `bun:"image_url"`
-	Category    string          `bun:"category,notnull"`
+	Category    string          `bun:"category"`
+	ServiceType *string         `bun:"service_type"`
+	Description *string         `bun:"description"`
 	Stats        json.RawMessage `bun:"stats,type:jsonb,default:'[]'"`
 	Suffixes     json.RawMessage `bun:"suffixes,type:jsonb,default:'[]'"`
 	Runes        json.RawMessage `bun:"runes,type:jsonb,default:'[]'"`
@@ -29,7 +32,7 @@ type Listing struct {
 	AskingPrice *string         `bun:"asking_price"`
 	Notes       *string         `bun:"notes"`
 	Game        string          `bun:"game,notnull,default:'diablo2'"`
-	Ladder      bool            `bun:"ladder,default:true"`
+	Ladder      bool            `bun:"ladder"`
 	Hardcore    bool            `bun:"hardcore,default:false"`
 	IsNonRotw   bool            `bun:"is_non_rotw,default:false"`
 	Platforms   []string        `bun:"platforms,array,default:'{pc}'"`
@@ -110,6 +113,27 @@ func (l *Listing) GetCatalogItemID() string {
 func (l *Listing) GetSellerTimezone() string {
 	if l.SellerTimezone != nil {
 		return *l.SellerTimezone
+	}
+	return ""
+}
+
+// IsService returns true if the listing is a service listing
+func (l *Listing) IsService() bool {
+	return l.ListingType == "service"
+}
+
+// GetServiceType returns the service type or empty string
+func (l *Listing) GetServiceType() string {
+	if l.ServiceType != nil {
+		return *l.ServiceType
+	}
+	return ""
+}
+
+// GetDescription returns the description or empty string
+func (l *Listing) GetDescription() string {
+	if l.Description != nil {
+		return *l.Description
 	}
 	return ""
 }

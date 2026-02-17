@@ -46,3 +46,14 @@ var Rarities = []string{
 	"set",
 	"runeword",
 }
+
+// ServiceTypes for Diablo 2 in-game services
+var ServiceTypes = []games.ServiceType{
+	{Code: "rush", Name: "Rush"},
+	{Code: "crush", Name: "Crush"},
+	{Code: "grush", Name: "Glitch Rush"},
+	{Code: "sockets", Name: "Socket Quest"},
+	{Code: "waypoints", Name: "Waypoints"},
+	{Code: "ubers", Name: "Ubers"},
+	{Code: "colossal_ancients", Name: "Colossal Ancients"},
+}

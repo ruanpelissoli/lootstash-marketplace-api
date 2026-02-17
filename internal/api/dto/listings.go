@@ -10,10 +10,13 @@ type ListingCardResponse struct {
 	ID            string           `json:"id"`
 	SellerID      string           `json:"sellerId"`
 	Seller        *ProfileResponse `json:"seller,omitempty"`
+	ListingType   string           `json:"listingType"`
 	Name          string           `json:"name"`
-	ItemType      string           `json:"itemType"`
-	Rarity        string           `json:"rarity"`
+	ItemType      string           `json:"itemType,omitempty"`
+	Rarity        string           `json:"rarity,omitempty"`
 	ImageURL      string           `json:"imageUrl,omitempty"`
+	ServiceType   string           `json:"serviceType,omitempty"`
+	Description   string           `json:"description,omitempty"`
 	Stats         []ItemStat       `json:"stats,omitempty"`
 	CatalogItemID string           `json:"catalogItemId,omitempty"`
 	AskingFor     json.RawMessage  `json:"askingFor,omitempty"`
@@ -34,11 +37,14 @@ type ListingResponse struct {
 	ID             string           `json:"id"`
 	SellerID       string           `json:"sellerId"`
 	Seller         *ProfileResponse `json:"seller,omitempty"`
+	ListingType    string           `json:"listingType"`
 	Name           string           `json:"name"`
-	ItemType       string           `json:"itemType"`
-	Rarity         string           `json:"rarity"`
+	ItemType       string           `json:"itemType,omitempty"`
+	Rarity         string           `json:"rarity,omitempty"`
 	ImageURL       string           `json:"imageUrl,omitempty"`
-	Category       string           `json:"category"`
+	Category       string           `json:"category,omitempty"`
+	ServiceType    string           `json:"serviceType,omitempty"`
+	Description    string           `json:"description,omitempty"`
 	Stats          []ItemStat       `json:"stats,omitempty"`
 	Suffixes       json.RawMessage  `json:"suffixes,omitempty"`
 	Runes          []RuneInfo       `json:"runes,omitempty"`
@@ -99,7 +105,39 @@ type UpdateListingRequest struct {
 	AskingFor   json.RawMessage `json:"askingFor,omitempty"`
 	AskingPrice *string         `json:"askingPrice,omitempty" validate:"omitempty,max=100"`
 	Notes       *string         `json:"notes,omitempty" validate:"omitempty,max=500"`
+	Description *string         `json:"description,omitempty" validate:"omitempty,max=2000"`
 	Status      *string         `json:"status,omitempty" validate:"omitempty,oneof=active cancelled"`
+}
+
+// CreateServiceListingRequest represents a request to create a service listing
+type CreateServiceListingRequest struct {
+	Name        string          `json:"name" validate:"required,min=1,max=100"`
+	ServiceType string          `json:"serviceType" validate:"required,oneof=rush crush grush sockets waypoints ubers colossal_ancients"`
+	Description string          `json:"description,omitempty" validate:"omitempty,max=2000"`
+	AskingFor   json.RawMessage `json:"askingFor,omitempty"`
+	AskingPrice string          `json:"askingPrice,omitempty" validate:"omitempty,max=100"`
+	Notes       string          `json:"notes,omitempty" validate:"omitempty,max=500"`
+	Game        string          `json:"game" validate:"required,min=1,max=20"`
+	Ladder      bool            `json:"ladder"`
+	Hardcore    bool            `json:"hardcore"`
+	IsNonRotw   bool            `json:"isNonRotw"`
+	Platforms   []string        `json:"platforms" validate:"required,min=1,dive,oneof=pc xbox playstation switch"`
+	Region      string          `json:"region" validate:"required,oneof=americas europe asia"`
+}
+
+// ServiceFilterRequest represents service listing filter parameters
+type ServiceFilterRequest struct {
+	Q           string `query:"q"`
+	ServiceType string `query:"serviceType"`
+	Game        string `query:"game"`
+	Ladder      *bool  `query:"ladder"`
+	Hardcore    *bool  `query:"hardcore"`
+	IsNonRotw   *bool  `query:"isNonRotw"`
+	Platforms   string `query:"platforms"`
+	Region      string `query:"region"`
+	SortBy      string `query:"sortBy"`
+	SortOrder   string `query:"sortOrder"`
+	Pagination
 }
 
 // ListingFilterRequest represents listing filter parameters
@@ -107,6 +145,7 @@ type ListingFilterRequest struct {
 	SellerID         string `query:"sellerId"`
 	Q                string `query:"q"`
 	CatalogItemID    string `query:"catalogItemId"`
+	ListingType      string `query:"listingType"`
 	Game             string `query:"game"`
 	Ladder           *bool  `query:"ladder"`
 	Hardcore         *bool  `query:"hardcore"`
@@ -134,6 +173,7 @@ type AskingForFilter struct {
 	Name        string `json:"name" validate:"required,min=1,max=100"`
 	Type        string `json:"type,omitempty" validate:"omitempty,max=50"`
 	MinQuantity *int   `json:"minQuantity,omitempty" validate:"omitempty,min=1"`
+	MaxQuantity *int   `json:"maxQuantity,omitempty" validate:"omitempty,min=1"`
 }
 
 // ItemStat represents a stat on a listing item with display name
@@ -167,8 +207,8 @@ type SearchListingsRequest struct {
 	Category         string            `json:"category"`
 	Rarity           string            `json:"rarity"`
 	SellerID         string            `json:"sellerId"`
-	AffixFilters     []AffixFilter     `json:"affixFilters"`
-	AskingForFilters []AskingForFilter `json:"askingForFilters"`
+	AffixFilters     []AffixFilter    `json:"affixFilters"`
+	AskingForFilter  *AskingForFilter `json:"askingForFilter"`
 	SortBy           string            `json:"sortBy"`
 	SortOrder        string            `json:"sortOrder"`
 	Page             int               `json:"page"`
@@ -177,7 +217,8 @@ type SearchListingsRequest struct {
 
 // MyListingsFilterRequest represents filter parameters for user's own listings
 type MyListingsFilterRequest struct {
-	Status string `query:"status"`
+	Status      string `query:"status"`
+	ListingType string `query:"listingType"`
 	Pagination
 }
 

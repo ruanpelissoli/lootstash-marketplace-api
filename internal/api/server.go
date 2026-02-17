@@ -253,6 +253,10 @@ func (s *Server) setupRoutes() {
 	// Stripe webhook (no auth required)
 	apiV1.Post("/webhooks/stripe", webhookHandler.StripeWebhook)
 
+	// Public service routes
+	apiV1.Get("/services", authOptional, listingHandler.ListServices)
+	apiV1.Get("/services/:id", authOptional, listingHandler.GetService)
+
 	// Game routes
 	apiV1.Get("/games/:game/categories", func(c *fiber.Ctx) error {
 		gameCode := c.Params("game")
@@ -265,6 +269,18 @@ func (s *Server) setupRoutes() {
 			})
 		}
 		return c.JSON(categories)
+	})
+	apiV1.Get("/games/:game/service-types", func(c *fiber.Ctx) error {
+		gameCode := c.Params("game")
+		serviceTypes, err := registry.GetServiceTypes(gameCode)
+		if err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error":   "not_found",
+				"message": "Game not found",
+				"code":    404,
+			})
+		}
+		return c.JSON(serviceTypes)
 	})
 
 	// Authenticated routes (with activity tracking for online sellers count)
@@ -282,11 +298,17 @@ func (s *Server) setupRoutes() {
 
 	// My listings
 	authenticated.Get("/my/listings", listingHandler.ListMy)
+	authenticated.Get("/my/services", listingHandler.ListMyServices)
 
 	// Listing management
 	authenticated.Post("/listings", listingHandler.Create)
 	authenticated.Patch("/listings/:id", listingHandler.Update)
 	authenticated.Delete("/listings/:id", listingHandler.Delete)
+
+	// Service listing management
+	authenticated.Post("/services", listingHandler.CreateService)
+	authenticated.Patch("/services/:id", listingHandler.UpdateService)
+	authenticated.Delete("/services/:id", listingHandler.DeleteService)
 
 	// Offer routes
 	authenticated.Get("/offers", offerHandler.List)
@@ -349,6 +371,8 @@ func (s *Server) setupRoutes() {
 		applogger.Log.Info("warmed home:stats cache")
 		listingService.WarmRecentListings(ctx)
 		applogger.Log.Info("warmed home:recent cache")
+		listingService.WarmRecentServices(ctx)
+		applogger.Log.Info("warmed home:recent:services cache")
 	}()
 }
 

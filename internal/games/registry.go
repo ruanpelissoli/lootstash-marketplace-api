@@ -65,3 +65,12 @@ func (r *Registry) GetCategories(code string) ([]Category, error) {
 	}
 	return handler.GetCategories(), nil
 }
+
+// GetServiceTypes returns service types for a specific game
+func (r *Registry) GetServiceTypes(code string) ([]ServiceType, error) {
+	handler, err := r.Get(code)
+	if err != nil {
+		return nil, err
+	}
+	return handler.GetServiceTypes(), nil
+}

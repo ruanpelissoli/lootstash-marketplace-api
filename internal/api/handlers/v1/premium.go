@@ -174,7 +174,7 @@ func (h *PremiumHandler) PriceHistory(c *fiber.Ctx) error {
 func (h *PremiumHandler) ListingCount(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 
-	listings, _, err := h.listingService.ListBySellerID(c.Context(), userID, "active", 0, 0)
+	listings, _, err := h.listingService.ListBySellerID(c.Context(), userID, "active", "", 0, 0)
 	if err != nil {
 		logger.FromContext(c.UserContext()).Error("failed to count listings",
 			"error", err.Error(),

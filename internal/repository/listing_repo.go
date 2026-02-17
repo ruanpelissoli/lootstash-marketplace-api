@@ -133,7 +133,7 @@ func (r *listingRepository) List(ctx context.Context, filter ListingFilter) ([]*
 	return listings, count, nil
 }
 
-func (r *listingRepository) ListBySellerID(ctx context.Context, sellerID string, status string, offset, limit int) ([]*models.Listing, int, error) {
+func (r *listingRepository) ListBySellerID(ctx context.Context, sellerID string, status string, listingType string, offset, limit int) ([]*models.Listing, int, error) {
 	var listings []*models.Listing
 
 	query := r.db.DB().NewSelect().
@@ -142,6 +142,10 @@ func (r *listingRepository) ListBySellerID(ctx context.Context, sellerID string,
 
 	if status != "" {
 		query = query.Where("l.status = ?", status)
+	}
+
+	if listingType != "" {
+		query = query.Where("l.listing_type = ?", listingType)
 	}
 
 	count, err := query.Count(ctx)
@@ -173,6 +177,14 @@ func (r *listingRepository) CountByListingID(ctx context.Context, listingID stri
 }
 
 func (r *listingRepository) applyFilters(query *bun.SelectQuery, filter ListingFilter) *bun.SelectQuery {
+	if filter.ListingType != "" {
+		query = query.Where("l.listing_type = ?", filter.ListingType)
+	}
+
+	if filter.ServiceType != "" {
+		query = query.Where("l.service_type = ?", filter.ServiceType)
+	}
+
 	if filter.SellerID != "" {
 		query = query.Where("l.seller_id = ?", filter.SellerID)
 	}
@@ -229,9 +241,9 @@ func (r *listingRepository) applyFilters(query *bun.SelectQuery, filter ListingF
 		query = r.applyAffixFilter(query, af)
 	}
 
-	// Apply asking_for filters (JSONB queries)
-	for _, af := range filter.AskingForFilters {
-		query = r.applyAskingForFilter(query, af)
+	// Apply asking_for filter (JSONB query)
+	if filter.AskingForFilter != nil {
+		query = r.applyAskingForFilter(query, *filter.AskingForFilter)
 	}
 
 	return query
@@ -297,32 +309,30 @@ func (r *listingRepository) applyAffixFilter(query *bun.SelectQuery, af AffixFil
 	return query
 }
 
+// applyAskingForFilter adds a WHERE clause that checks if ANY element across
+// all groups in asking_for matches the filter.
+// asking_for is structured as [[{item1},{item2}],[{item3}]] (OR of ANDs).
 func (r *listingRepository) applyAskingForFilter(query *bun.SelectQuery, af AskingForFilter) *bun.SelectQuery {
-	namePattern := "%" + strings.ToLower(af.Name) + "%"
+	conditions := []string{"LOWER(elem->>'name') = ?"}
+	args := []interface{}{strings.ToLower(af.Name)}
 
-	if af.Type != "" && af.MinQuantity != nil {
-		query = query.Where(
-			"(SELECT COUNT(*) FROM jsonb_array_elements(l.asking_for) elem WHERE LOWER(elem->>'name') LIKE ? AND elem->>'type' = ?) >= ?",
-			namePattern, af.Type, *af.MinQuantity,
-		)
-	} else if af.Type != "" {
-		query = query.Where(
-			"EXISTS (SELECT 1 FROM jsonb_array_elements(l.asking_for) elem WHERE LOWER(elem->>'name') LIKE ? AND elem->>'type' = ?)",
-			namePattern, af.Type,
-		)
-	} else if af.MinQuantity != nil {
-		query = query.Where(
-			"(SELECT COUNT(*) FROM jsonb_array_elements(l.asking_for) elem WHERE LOWER(elem->>'name') LIKE ?) >= ?",
-			namePattern, *af.MinQuantity,
-		)
-	} else {
-		query = query.Where(
-			"EXISTS (SELECT 1 FROM jsonb_array_elements(l.asking_for) elem WHERE LOWER(elem->>'name') LIKE ?)",
-			namePattern,
-		)
+	if af.Type != "" {
+		conditions = append(conditions, "elem->>'type' = ?")
+		args = append(args, af.Type)
 	}
 
-	return query
+	if af.MinQuantity != nil {
+		conditions = append(conditions, "(elem->>'quantity')::int >= ?")
+		args = append(args, *af.MinQuantity)
+	}
+
+	if af.MaxQuantity != nil {
+		conditions = append(conditions, "(elem->>'quantity')::int <= ?")
+		args = append(args, *af.MaxQuantity)
+	}
+
+	clause := "EXISTS (SELECT 1 FROM jsonb_array_elements(l.asking_for) grp, jsonb_array_elements(grp) elem WHERE " + strings.Join(conditions, " AND ") + ")"
+	return query.Where(clause, args...)
 }
 
 func (r *listingRepository) applySorting(query *bun.SelectQuery, filter ListingFilter) *bun.SelectQuery {

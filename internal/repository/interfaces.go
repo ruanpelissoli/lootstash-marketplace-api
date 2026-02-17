@@ -25,7 +25,7 @@ type ListingRepository interface {
 	Update(ctx context.Context, listing *models.Listing) error
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, filter ListingFilter) ([]*models.Listing, int, error)
-	ListBySellerID(ctx context.Context, sellerID string, status string, offset, limit int) ([]*models.Listing, int, error)
+	ListBySellerID(ctx context.Context, sellerID string, status string, listingType string, offset, limit int) ([]*models.Listing, int, error)
 	CountByListingID(ctx context.Context, listingID string) (int, error)
 	CountActiveBySellerID(ctx context.Context, sellerID string) (int, error)
 	IncrementViews(ctx context.Context, id string) error
@@ -59,8 +59,10 @@ type ListingFilter struct {
 	Region           string
 	Category         string
 	Rarity           string
-	AffixFilters     []AffixFilter
-	AskingForFilters []AskingForFilter
+	ListingType      string
+	ServiceType      string
+	AffixFilters    []AffixFilter
+	AskingForFilter *AskingForFilter
 	SortBy           string
 	SortOrder        string
 	Offset           int
@@ -79,6 +81,7 @@ type AskingForFilter struct {
 	Name        string
 	Type        string
 	MinQuantity *int
+	MaxQuantity *int
 }
 
 // OfferRepository defines the interface for offer data access

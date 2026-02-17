@@ -249,6 +249,9 @@ func (s *TradeServiceNew) Complete(ctx context.Context, id string, userID string
 	// Invalidate listing DTO cache (status changed to completed)
 	_ = s.invalidator.InvalidateListingDTO(ctx, trade.ListingID)
 
+	// Remove from the appropriate recent cache
+	s.listingService.RemoveFromRecentByListing(ctx, listing)
+
 	// Refresh home stats (tradesToday + activeListings changed)
 	if s.statsService != nil {
 		go s.statsService.RefreshHomeStats(context.Background())

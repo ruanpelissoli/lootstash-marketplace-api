@@ -57,6 +57,11 @@ func (h *Handler) GetRarities() []string {
 	return Rarities
 }
 
+// GetServiceTypes returns available service types for D2
+func (h *Handler) GetServiceTypes() []games.ServiceType {
+	return ServiceTypes
+}
+
 // ItemStat represents a single stat on an item
 type ItemStat struct {
 	Code  string `json:"code"`

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -29,7 +30,7 @@ func NewListingHandler(service *service.ListingService) *ListingHandler {
 	}
 }
 
-// List handles GET /api/v1/listings
+// List handles GET /api/v1/listings (items only)
 func (h *ListingHandler) List(c *fiber.Ctx) error {
 	var filter dto.ListingFilterRequest
 	if err := c.QueryParser(&filter); err != nil {
@@ -39,6 +40,9 @@ func (h *ListingHandler) List(c *fiber.Ctx) error {
 			Code:    400,
 		})
 	}
+
+	// Force item-only filter for /listings endpoint
+	filter.ListingType = "item"
 
 	listings, count, err := h.service.List(c.Context(), &filter)
 	if err != nil {
@@ -85,34 +89,36 @@ func (h *ListingHandler) Search(c *fiber.Ctx) error {
 		})
 	}
 
-	// Convert asking_for filters
-	var askingForFilters []repository.AskingForFilter
-	for _, f := range req.AskingForFilters {
-		askingForFilters = append(askingForFilters, repository.AskingForFilter{
-			Name:        f.Name,
-			Type:        f.Type,
-			MinQuantity: f.MinQuantity,
-		})
+	// Convert asking_for filter
+	var askingForFilter *repository.AskingForFilter
+	if req.AskingForFilter != nil {
+		askingForFilter = &repository.AskingForFilter{
+			Name:        req.AskingForFilter.Name,
+			Type:        req.AskingForFilter.Type,
+			MinQuantity: req.AskingForFilter.MinQuantity,
+			MaxQuantity: req.AskingForFilter.MaxQuantity,
+		}
 	}
 
 	filter := repository.ListingFilter{
-		SellerID:         req.SellerID,
-		Query:            req.Q,
-		CatalogItemID:    req.CatalogItemID,
-		Game:             req.Game,
-		Ladder:           req.Ladder,
-		Hardcore:         req.Hardcore,
-		IsNonRotw:        req.IsNonRotw,
+		SellerID:        req.SellerID,
+		Query:           req.Q,
+		CatalogItemID:   req.CatalogItemID,
+		ListingType:     "item",
+		Game:            req.Game,
+		Ladder:          req.Ladder,
+		Hardcore:        req.Hardcore,
+		IsNonRotw:       req.IsNonRotw,
 		Platforms:        req.Platforms,
-		Region:           req.Region,
-		Category:         req.Category,
-		Rarity:           req.Rarity,
-		AffixFilters:     affixFilters,
-		AskingForFilters: askingForFilters,
-		SortBy:           req.SortBy,
-		SortOrder:        req.SortOrder,
-		Offset:           pag.GetOffset(),
-		Limit:            pag.GetLimit(),
+		Region:          req.Region,
+		Category:        req.Category,
+		Rarity:          req.Rarity,
+		AffixFilters:    affixFilters,
+		AskingForFilter: askingForFilter,
+		SortBy:          req.SortBy,
+		SortOrder:       req.SortOrder,
+		Offset:          pag.GetOffset(),
+		Limit:           pag.GetLimit(),
 	}
 
 	listings, count, err := h.service.ListByFilter(c.Context(), filter)
@@ -320,7 +326,7 @@ func (h *ListingHandler) ListMy(c *fiber.Ctx) error {
 		})
 	}
 
-	listings, count, err := h.service.ListBySellerID(c.Context(), userID, filter.Status, filter.GetOffset(), filter.GetLimit())
+	listings, count, err := h.service.ListBySellerID(c.Context(), userID, filter.Status, "item", filter.GetOffset(), filter.GetLimit())
 	if err != nil {
 		logger.FromContext(c.UserContext()).Error("failed to list my listings",
 			"error", err.Error(),
@@ -340,4 +346,160 @@ func (h *ListingHandler) ListMy(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(dto.NewPaginatedResponse(items, filter.Page, filter.GetLimit(), count))
+}
+
+// ListServices handles GET /api/v1/services
+func (h *ListingHandler) ListServices(c *fiber.Ctx) error {
+	var filter dto.ServiceFilterRequest
+	if err := c.QueryParser(&filter); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error:   "bad_request",
+			Message: "Invalid query parameters",
+			Code:    400,
+		})
+	}
+
+	repoFilter := repository.ListingFilter{
+		ListingType: "service",
+		ServiceType: filter.ServiceType,
+		Query:       filter.Q,
+		Game:        filter.Game,
+		Ladder:      filter.Ladder,
+		Hardcore:    filter.Hardcore,
+		IsNonRotw:   filter.IsNonRotw,
+		Platforms:   parsePlatformsFromString(filter.Platforms),
+		Region:      filter.Region,
+		SortBy:      filter.SortBy,
+		SortOrder:   filter.SortOrder,
+		Offset:      filter.GetOffset(),
+		Limit:       filter.GetLimit(),
+	}
+
+	listings, count, err := h.service.ListByFilter(c.Context(), repoFilter)
+	if err != nil {
+		logger.FromContext(c.UserContext()).Error("failed to list services",
+			"error", err.Error(),
+		)
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "internal_error",
+			Message: "Failed to list services",
+			Code:    500,
+		})
+	}
+
+	items := make([]dto.ListingCardResponse, 0, len(listings))
+	for _, listing := range listings {
+		items = append(items, *h.service.ToCardResponse(listing))
+	}
+
+	return c.JSON(dto.NewPaginatedResponse(items, filter.Page, filter.GetLimit(), count))
+}
+
+// GetService handles GET /api/v1/services/:id (reuses item detail logic)
+func (h *ListingHandler) GetService(c *fiber.Ctx) error {
+	return h.GetByID(c)
+}
+
+// CreateService handles POST /api/v1/services
+func (h *ListingHandler) CreateService(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+
+	var req dto.CreateServiceListingRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error:   "bad_request",
+			Message: "Invalid request body",
+			Code:    400,
+		})
+	}
+
+	if err := h.validator.Struct(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error:   "validation_error",
+			Message: err.Error(),
+			Code:    400,
+		})
+	}
+
+	listing, err := h.service.CreateService(c.Context(), userID, &req)
+	if err != nil {
+		if errors.Is(err, service.ErrListingLimitReached) {
+			return c.Status(fiber.StatusForbidden).JSON(dto.ErrorResponse{
+				Error:   "listing_limit_reached",
+				Message: fmt.Sprintf("Free users can have at most %d active listings. Upgrade to premium for unlimited listings.", service.FreeListingLimit),
+				Code:    403,
+			})
+		}
+		logger.FromContext(c.UserContext()).Error("failed to create service listing",
+			"error", err.Error(),
+			"user_id", userID,
+		)
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "internal_error",
+			Message: "Failed to create service listing",
+			Code:    500,
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(h.service.ToCardResponse(listing))
+}
+
+// UpdateService handles PATCH /api/v1/services/:id (reuses item update logic)
+func (h *ListingHandler) UpdateService(c *fiber.Ctx) error {
+	return h.Update(c)
+}
+
+// DeleteService handles DELETE /api/v1/services/:id (reuses item delete logic)
+func (h *ListingHandler) DeleteService(c *fiber.Ctx) error {
+	return h.Delete(c)
+}
+
+// ListMyServices handles GET /api/v1/my/services
+func (h *ListingHandler) ListMyServices(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+
+	var filter dto.MyListingsFilterRequest
+	if err := c.QueryParser(&filter); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error:   "bad_request",
+			Message: "Invalid query parameters",
+			Code:    400,
+		})
+	}
+
+	listings, count, err := h.service.ListBySellerID(c.Context(), userID, filter.Status, "service", filter.GetOffset(), filter.GetLimit())
+	if err != nil {
+		logger.FromContext(c.UserContext()).Error("failed to list my services",
+			"error", err.Error(),
+			"user_id", userID,
+		)
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "internal_error",
+			Message: "Failed to list services",
+			Code:    500,
+		})
+	}
+
+	items := make([]dto.ListingCardResponse, 0, len(listings))
+	for _, listing := range listings {
+		items = append(items, *h.service.ToCardResponse(listing))
+	}
+
+	return c.JSON(dto.NewPaginatedResponse(items, filter.Page, filter.GetLimit(), count))
+}
+
+// parsePlatformsFromString splits a comma-separated platform string into a slice
+func parsePlatformsFromString(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	var result []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
 }

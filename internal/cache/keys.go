@@ -13,7 +13,8 @@ const (
 	prefixRateLimit         = "ratelimit"
 	prefixMarketplaceStats  = "marketplace:stats"
 	prefixHomeStats         = "home:stats"
-	prefixHomeRecent        = "home:recent"
+	prefixHomeRecent         = "home:recent"
+	prefixHomeRecentServices = "home:recent:services"
 )
 
 // Profile cache keys
@@ -80,4 +81,9 @@ func HomeStatsKey() string {
 // HomeRecentKey returns the home recent listings cache key
 func HomeRecentKey() string {
 	return prefixHomeRecent
+}
+
+// HomeRecentServicesKey returns the home recent services cache key
+func HomeRecentServicesKey() string {
+	return prefixHomeRecentServices
 }

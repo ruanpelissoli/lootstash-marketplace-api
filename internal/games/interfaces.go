@@ -16,10 +16,19 @@ type GameHandler interface {
 
 	// GetRarities returns the valid rarities for this game
 	GetRarities() []string
+
+	// GetServiceTypes returns the available service types for this game
+	GetServiceTypes() []ServiceType
 }
 
 // Category represents an item category
 type Category struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
+}
+
+// ServiceType represents a type of in-game service
+type ServiceType struct {
 	Code string `json:"code"`
 	Name string `json:"name"`
 }
