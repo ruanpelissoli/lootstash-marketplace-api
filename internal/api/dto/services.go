@@ -73,6 +73,19 @@ type UpdateServiceRequest struct {
 	Region      *string         `json:"region,omitempty" validate:"omitempty,oneof=americas europe asia"`
 }
 
+// SearchServicesRequest represents service search/filter parameters via JSON body
+type SearchServicesRequest struct {
+	ServiceType []string `json:"serviceType"`
+	Game        string   `json:"game"`
+	Ladder      *bool    `json:"ladder"`
+	Hardcore    *bool    `json:"hardcore"`
+	IsNonRotw   *bool    `json:"isNonRotw"`
+	Platforms   []string `json:"platforms"`
+	Region      string   `json:"region"`
+	Page        int      `json:"page"`
+	PerPage     int      `json:"perPage"`
+}
+
 // ServiceProvidersFilterRequest represents filter parameters for provider listing
 type ServiceProvidersFilterRequest struct {
 	ServiceType string `query:"serviceType"`

@@ -2,7 +2,9 @@ package v1
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
@@ -26,6 +28,49 @@ func NewServiceHandler(service *service.ServiceService) *ServiceHandler {
 		service:   service,
 		validator: validator.New(),
 	}
+}
+
+// Search handles POST /api/v1/services/search
+func (h *ServiceHandler) Search(c *fiber.Ctx) error {
+	var req dto.SearchServicesRequest
+	if err := json.Unmarshal(c.Body(), &req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error:   "bad_request",
+			Message: "Invalid request body",
+			Code:    400,
+		})
+	}
+
+	fmt.Printf("[SERVICE SEARCH] serviceType=%v game=%s ladder=%v hardcore=%v\n",
+		req.ServiceType, req.Game, req.Ladder, req.Hardcore)
+
+	pag := dto.Pagination{Page: req.Page, PerPage: req.PerPage}
+
+	repoFilter := repository.ServiceProviderFilter{
+		ServiceType: req.ServiceType,
+		Game:        req.Game,
+		Ladder:      req.Ladder,
+		Hardcore:    req.Hardcore,
+		IsNonRotw:   req.IsNonRotw,
+		Platforms:   req.Platforms,
+		Region:      req.Region,
+		Offset:      pag.GetOffset(),
+		Limit:       pag.GetLimit(),
+	}
+
+	providers, count, err := h.service.ListProviders(c.Context(), repoFilter)
+	if err != nil {
+		logger.FromContext(c.UserContext()).Error("failed to search services",
+			"error", err.Error(),
+		)
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "internal_error",
+			Message: "Failed to search services",
+			Code:    500,
+		})
+	}
+
+	return c.JSON(dto.NewPaginatedResponse(providers, pag.Page, pag.GetLimit(), count))
 }
 
 // ListProviders handles GET /api/v1/services

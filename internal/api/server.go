@@ -264,6 +264,7 @@ func (s *Server) setupRoutes() {
 	apiV1.Post("/webhooks/stripe", webhookHandler.StripeWebhook)
 
 	// Public service routes
+	apiV1.Post("/services/search", authOptional, serviceHandler.Search)
 	apiV1.Get("/services", authOptional, serviceHandler.ListProviders)
 	apiV1.Get("/services/providers/:id", authOptional, serviceHandler.GetProviderDetail)
 

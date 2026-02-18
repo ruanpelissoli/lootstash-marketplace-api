@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/database"
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/logger"
@@ -131,10 +132,15 @@ func (r *serviceRepository) ListProviders(ctx context.Context, filter ServicePro
 		subQuery = subQuery.Where("s.region = ?", filter.Region)
 	}
 
+	// Debug: print the generated SQL
+	fmt.Printf("[SERVICE REPO] subQuery SQL: %s\n", subQuery.String())
+
 	// Count total distinct providers
 	countQuery := r.db.DB().NewSelect().
 		ColumnExpr("COUNT(*)").
 		TableExpr("(?) AS sub", subQuery)
+
+	fmt.Printf("[SERVICE REPO] countQuery SQL: %s\n", countQuery.String())
 
 	var totalCount int
 	err := countQuery.Scan(ctx, &totalCount)
@@ -145,16 +151,21 @@ func (r *serviceRepository) ListProviders(ctx context.Context, filter ServicePro
 		return nil, 0, err
 	}
 
+	fmt.Printf("[SERVICE REPO] totalCount=%d\n", totalCount)
+
 	// Get paginated provider IDs sorted by premium + rating
-	var providerIDs []string
-	err = r.db.DB().NewSelect().
+	providerIDsQuery := r.db.DB().NewSelect().
 		ColumnExpr("sub.provider_id").
 		TableExpr("(?) AS sub", subQuery).
 		Join("JOIN d2.profiles AS p ON p.id = sub.provider_id").
 		OrderExpr("p.is_premium DESC, p.average_rating DESC").
 		Limit(filter.Limit).
-		Offset(filter.Offset).
-		Scan(ctx, &providerIDs)
+		Offset(filter.Offset)
+
+	fmt.Printf("[SERVICE REPO] providerIDs SQL: %s\n", providerIDsQuery.String())
+
+	var providerIDs []string
+	err = providerIDsQuery.Scan(ctx, &providerIDs)
 	if err != nil {
 		logger.FromContext(ctx).Error("failed to list service provider IDs",
 			"error", err.Error(),
