@@ -57,7 +57,7 @@ type ListingFilter struct {
 	IsNonRotw       *bool
 	Platforms       []string
 	Region          string
-	Category        string
+	Categories      []string
 	Rarity          string
 	AffixFilters    []AffixFilter
 	AskingForFilter *AskingForFilter

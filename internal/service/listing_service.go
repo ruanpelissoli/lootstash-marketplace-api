@@ -344,7 +344,7 @@ func (s *ListingService) List(ctx context.Context, req *dto.ListingFilterRequest
 		IsNonRotw:       req.IsNonRotw,
 		Platforms:       parsePlatforms(req.Platforms),
 		Region:          req.Region,
-		Category:        req.Category,
+		Categories:      parsePlatforms(req.Categories),
 		Rarity:          req.Rarity,
 		AffixFilters:    affixFilters,
 		AskingForFilter: askingForFilter,

@@ -116,7 +116,7 @@ type ListingFilterRequest struct {
 	IsNonRotw        *bool  `query:"isNonRotw"`
 	Platforms        string `query:"platforms"`
 	Region           string `query:"region"`
-	Category         string `query:"category"`
+	Categories       string `query:"categories"`
 	Rarity           string `query:"rarity"`
 	AffixFilters     string `query:"affixFilters"`
 	AskingForFilters string `query:"askingForFilters"`
@@ -168,7 +168,7 @@ type SearchListingsRequest struct {
 	IsNonRotw       *bool            `json:"nonRotw"`
 	Platforms       []string         `json:"platforms"`
 	Region          string           `json:"region"`
-	Category        string           `json:"category"`
+	Categories      []string         `json:"categories"`
 	Rarity          string           `json:"rarity"`
 	SellerID        string           `json:"sellerId"`
 	AffixFilters    []AffixFilter    `json:"affixFilters"`

@@ -208,12 +208,8 @@ func (r *listingRepository) applyFilters(query *bun.SelectQuery, filter ListingF
 		query = query.Where("l.region = ?", filter.Region)
 	}
 
-	if filter.Category != "" {
-		query = query.Where("l.category = ? OR l.category LIKE ? OR l.category IN (?)",
-			filter.Category,
-			"% "+filter.Category,
-			bun.In(d2.GetSubcategories(filter.Category)),
-		)
+	if len(filter.Categories) > 0 {
+		query = query.Where("l.category IN (?)", bun.In(filter.Categories))
 	}
 
 	if filter.Rarity != "" {

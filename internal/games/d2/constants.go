@@ -25,12 +25,6 @@ var Categories = []games.Category{
 // categoryAliases maps parent category codes to additional stored values
 // that should match when filtering by the parent category
 var categoryAliases = map[string][]string{
-	"weapon": {
-		"swords", "axes", "maces", "hammers", "polearms", "spears", "staves",
-		"wands", "scepters", "bows", "crossbows", "javelins", "daggers", "knives",
-		"throwing knives", "throwing axes", "claws", "orbs",
-		"amazon bows", "amazon javelins", "amazon spears",
-	},
 	"misc": {"quest"},
 }
 

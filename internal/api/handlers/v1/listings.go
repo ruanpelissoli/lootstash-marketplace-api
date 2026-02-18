@@ -107,7 +107,7 @@ func (h *ListingHandler) Search(c *fiber.Ctx) error {
 		IsNonRotw:       req.IsNonRotw,
 		Platforms:       req.Platforms,
 		Region:          req.Region,
-		Category:        req.Category,
+		Categories:      req.Categories,
 		Rarity:          req.Rarity,
 		AffixFilters:    affixFilters,
 		AskingForFilter: askingForFilter,

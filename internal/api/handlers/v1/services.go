@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
@@ -40,9 +39,6 @@ func (h *ServiceHandler) Search(c *fiber.Ctx) error {
 			Code:    400,
 		})
 	}
-
-	fmt.Printf("[SERVICE SEARCH] serviceType=%v game=%s ladder=%v hardcore=%v\n",
-		req.ServiceType, req.Game, req.Ladder, req.Hardcore)
 
 	pag := dto.Pagination{Page: req.Page, PerPage: req.PerPage}
 
