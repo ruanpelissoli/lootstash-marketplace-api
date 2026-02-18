@@ -173,15 +173,57 @@ func (s *NotificationService) NotifyTradeCancelled(ctx context.Context, userID s
 }
 
 // NotifyNewMessage notifies a user of a new message
-func (s *NotificationService) NotifyNewMessage(ctx context.Context, userID string, tradeID string, senderName string) error {
-	refType := "trade"
+func (s *NotificationService) NotifyNewMessage(ctx context.Context, userID string, referenceID string, senderName string) error {
+	refType := "chat"
 	notification := &models.Notification{
 		UserID:        userID,
 		Type:          models.NotificationTypeNewMessage,
 		Title:         "New Message",
 		Body:          strPtr(fmt.Sprintf("New message from %s", senderName)),
 		ReferenceType: &refType,
-		ReferenceID:   &tradeID,
+		ReferenceID:   &referenceID,
+	}
+	return s.Create(ctx, notification)
+}
+
+// NotifyServiceRunCreated notifies a user that a service run was created
+func (s *NotificationService) NotifyServiceRunCreated(ctx context.Context, userID string, serviceRunID string, serviceName string) error {
+	refType := "service_run"
+	notification := &models.Notification{
+		UserID:        userID,
+		Type:          models.NotificationTypeServiceRunCreated,
+		Title:         "Service Run Started",
+		Body:          strPtr(fmt.Sprintf("A new service run for %s has been created", serviceName)),
+		ReferenceType: &refType,
+		ReferenceID:   &serviceRunID,
+	}
+	return s.Create(ctx, notification)
+}
+
+// NotifyServiceRunCompleted notifies a user that a service run was completed
+func (s *NotificationService) NotifyServiceRunCompleted(ctx context.Context, userID string, serviceRunID string, serviceName string) error {
+	refType := "service_run"
+	notification := &models.Notification{
+		UserID:        userID,
+		Type:          models.NotificationTypeServiceRunCompleted,
+		Title:         "Service Run Completed",
+		Body:          strPtr(fmt.Sprintf("The service run for %s has been completed!", serviceName)),
+		ReferenceType: &refType,
+		ReferenceID:   &serviceRunID,
+	}
+	return s.Create(ctx, notification)
+}
+
+// NotifyServiceRunCancelled notifies a user that a service run was cancelled
+func (s *NotificationService) NotifyServiceRunCancelled(ctx context.Context, userID string, serviceRunID string, serviceName string) error {
+	refType := "service_run"
+	notification := &models.Notification{
+		UserID:        userID,
+		Type:          models.NotificationTypeServiceRunCancelled,
+		Title:         "Service Run Cancelled",
+		Body:          strPtr(fmt.Sprintf("The service run for %s has been cancelled.", serviceName)),
+		ReferenceType: &refType,
+		ReferenceID:   &serviceRunID,
 	}
 	return s.Create(ctx, notification)
 }

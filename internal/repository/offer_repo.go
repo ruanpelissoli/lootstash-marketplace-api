@@ -24,7 +24,6 @@ func (r *offerRepository) Create(ctx context.Context, offer *models.Offer) error
 	if err != nil {
 		logger.FromContext(ctx).Error("failed to create offer",
 			"error", err.Error(),
-			"listing_id", offer.ListingID,
 			"requester_id", offer.RequesterID,
 		)
 	}
@@ -49,9 +48,12 @@ func (r *offerRepository) GetByIDWithRelations(ctx context.Context, id string) (
 		Model(offer).
 		Relation("Listing").
 		Relation("Listing.Seller").
+		Relation("Service").
+		Relation("Service.Provider").
 		Relation("Requester").
 		Relation("DeclineReason").
 		Relation("Trade").
+		Relation("ServiceRun").
 		Where("o.id = ?", id).
 		Scan(ctx)
 	if err != nil {
@@ -81,27 +83,50 @@ func (r *offerRepository) List(ctx context.Context, filter OfferFilter) ([]*mode
 		Model(&offers).
 		Relation("Listing").
 		Relation("Listing.Seller").
+		Relation("Service").
+		Relation("Service.Provider").
 		Relation("Requester").
 		Relation("DeclineReason").
-		Relation("Trade")
+		Relation("Trade").
+		Relation("ServiceRun")
+
+	// Filter by offer type
+	switch filter.Type {
+	case "item":
+		query = query.Where("o.type = ?", "item")
+	case "service":
+		query = query.Where("o.type = ?", "service")
+		// "all" or empty: no type filter
+	}
 
 	// If filtering by listingId, check that the user is the listing owner
 	if filter.ListingID != "" {
 		query = query.Where("o.listing_id = ?", filter.ListingID)
-		// Also ensure user owns the listing (for permission)
 		if filter.UserID != "" {
 			query = query.Where("EXISTS (SELECT 1 FROM d2.listings l WHERE l.id = o.listing_id AND l.seller_id = ?)", filter.UserID)
 		}
+	} else if filter.ServiceID != "" {
+		query = query.Where("o.service_id = ?", filter.ServiceID)
+		if filter.UserID != "" {
+			query = query.Where("EXISTS (SELECT 1 FROM d2.services s WHERE s.id = o.service_id AND s.provider_id = ?)", filter.UserID)
+		}
 	} else {
-		// Filter by role (only when not filtering by listingId)
+		// Filter by role
 		switch filter.Role {
 		case "buyer":
 			query = query.Where("o.requester_id = ?", filter.UserID)
 		case "seller":
-			query = query.Where("EXISTS (SELECT 1 FROM d2.listings l WHERE l.id = o.listing_id AND l.seller_id = ?)", filter.UserID)
+			// User is seller (listing owner) or provider (service owner)
+			query = query.Where(
+				"EXISTS (SELECT 1 FROM d2.listings l WHERE l.id = o.listing_id AND l.seller_id = ?) OR EXISTS (SELECT 1 FROM d2.services s WHERE s.id = o.service_id AND s.provider_id = ?)",
+				filter.UserID, filter.UserID,
+			)
 		default:
-			// All offers where user is either buyer or seller
-			query = query.Where("o.requester_id = ? OR EXISTS (SELECT 1 FROM d2.listings l WHERE l.id = o.listing_id AND l.seller_id = ?)", filter.UserID, filter.UserID)
+			// All offers where user is buyer, seller, or provider
+			query = query.Where(
+				"o.requester_id = ? OR EXISTS (SELECT 1 FROM d2.listings l WHERE l.id = o.listing_id AND l.seller_id = ?) OR EXISTS (SELECT 1 FROM d2.services s WHERE s.id = o.service_id AND s.provider_id = ?)",
+				filter.UserID, filter.UserID, filter.UserID,
+			)
 		}
 	}
 

@@ -10,13 +10,15 @@ import (
 type StatsHandler struct {
 	service        *service.StatsService
 	listingService *service.ListingService
+	serviceService *service.ServiceService
 }
 
 // NewStatsHandler creates a new stats handler
-func NewStatsHandler(service *service.StatsService, listingService *service.ListingService) *StatsHandler {
+func NewStatsHandler(service *service.StatsService, listingService *service.ListingService, serviceService *service.ServiceService) *StatsHandler {
 	return &StatsHandler{
 		service:        service,
 		listingService: listingService,
+		serviceService: serviceService,
 	}
 }
 
@@ -52,4 +54,23 @@ func (h *StatsHandler) GetRecentListings(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(listings)
+}
+
+// GetRecentServices returns recently created services from cache
+// GET /api/v1/marketplace/recent-services
+func (h *StatsHandler) GetRecentServices(c *fiber.Ctx) error {
+	services, err := h.serviceService.GetRecentServices(c.UserContext())
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "internal_error",
+			Message: "Failed to retrieve recent services",
+			Code:    500,
+		})
+	}
+
+	if services == nil {
+		services = []dto.RecentServiceResponse{}
+	}
+
+	return c.JSON(services)
 }

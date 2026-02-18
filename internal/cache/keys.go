@@ -11,10 +11,13 @@ const (
 	prefixNotificationCount = "notification:count"
 	prefixDeclineReasons    = "decline:reasons"
 	prefixRateLimit         = "ratelimit"
-	prefixMarketplaceStats  = "marketplace:stats"
-	prefixHomeStats         = "home:stats"
+	prefixMarketplaceStats   = "marketplace:stats"
+	prefixHomeStats          = "home:stats"
 	prefixHomeRecent         = "home:recent"
 	prefixHomeRecentServices = "home:recent:services"
+	prefixService            = "service"
+	prefixServiceDTO         = "service:dto"
+	prefixServiceProviders   = "service:providers"
 )
 
 // Profile cache keys
@@ -86,4 +89,19 @@ func HomeRecentKey() string {
 // HomeRecentServicesKey returns the home recent services cache key
 func HomeRecentServicesKey() string {
 	return prefixHomeRecentServices
+}
+
+// ServiceKey returns the service cache key
+func ServiceKey(id string) string {
+	return fmt.Sprintf("%s:%s", prefixService, id)
+}
+
+// ServiceDTOKey returns the service DTO cache key
+func ServiceDTOKey(id string) string {
+	return fmt.Sprintf("%s:%s", prefixServiceDTO, id)
+}
+
+// ServiceProvidersKey returns the service providers cache key for a game
+func ServiceProvidersKey(game string) string {
+	return fmt.Sprintf("%s:%s", prefixServiceProviders, game)
 }

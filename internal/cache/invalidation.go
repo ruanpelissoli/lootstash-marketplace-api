@@ -77,3 +77,20 @@ func (i *Invalidator) InvalidateAllListings(ctx context.Context) error {
 	}
 	return i.redis.DeleteByPattern(ctx, ListingPattern())
 }
+
+// InvalidateService removes a specific service from cache
+func (i *Invalidator) InvalidateService(ctx context.Context, id string) error {
+	if i == nil || i.redis == nil {
+		return nil
+	}
+	_ = i.redis.Del(ctx, ServiceKey(id))
+	return i.redis.Del(ctx, ServiceDTOKey(id))
+}
+
+// InvalidateServiceProviders removes service providers cache for a game
+func (i *Invalidator) InvalidateServiceProviders(ctx context.Context, game string) error {
+	if i == nil || i.redis == nil {
+		return nil
+	}
+	return i.redis.Del(ctx, ServiceProvidersKey(game))
+}

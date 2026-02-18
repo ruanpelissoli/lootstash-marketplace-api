@@ -36,15 +36,42 @@ func NewChatService(
 	}
 }
 
+// getParticipants returns the two participant IDs for a chat
+func (s *ChatService) getParticipants(chat *models.Chat) (string, string) {
+	if chat.IsTradeChat() && chat.Trade != nil {
+		return chat.Trade.SellerID, chat.Trade.BuyerID
+	}
+	if chat.IsServiceRunChat() && chat.ServiceRun != nil {
+		return chat.ServiceRun.ProviderID, chat.ServiceRun.ClientID
+	}
+	return "", ""
+}
+
+// isParticipant checks if a user is a participant of the chat
+func (s *ChatService) isParticipant(chat *models.Chat, userID string) bool {
+	a, b := s.getParticipants(chat)
+	return a == userID || b == userID
+}
+
+// isChatActive checks if the chat's parent entity is still active
+func (s *ChatService) isChatActive(chat *models.Chat) bool {
+	if chat.IsTradeChat() && chat.Trade != nil {
+		return chat.Trade.IsActive()
+	}
+	if chat.IsServiceRunChat() && chat.ServiceRun != nil {
+		return chat.ServiceRun.IsActive()
+	}
+	return false
+}
+
 // GetByID retrieves a chat by ID
 func (s *ChatService) GetByID(ctx context.Context, id string, userID string) (*models.Chat, error) {
-	chat, err := s.chatRepo.GetByIDWithTrade(ctx, id)
+	chat, err := s.chatRepo.GetByIDWithContext(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check user is a participant
-	if chat.Trade.SellerID != userID && chat.Trade.BuyerID != userID {
+	if !s.isParticipant(chat, userID) {
 		return nil, ErrForbidden
 	}
 
@@ -53,21 +80,20 @@ func (s *ChatService) GetByID(ctx context.Context, id string, userID string) (*m
 
 // SendMessage sends a message in a chat
 func (s *ChatService) SendMessage(ctx context.Context, chatID string, senderID string, content string) (*models.Message, error) {
-	// Get the chat with trade
-	chat, err := s.chatRepo.GetByIDWithTrade(ctx, chatID)
+	chat, err := s.chatRepo.GetByIDWithContext(ctx, chatID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Verify sender is a participant
-	if chat.Trade.SellerID != senderID && chat.Trade.BuyerID != senderID {
+	if !s.isParticipant(chat, senderID) {
 		return nil, ErrForbidden
 	}
 
-	// Trade must be active for messaging
-	if !chat.Trade.IsActive() {
+	if !s.isChatActive(chat) {
 		return nil, ErrInvalidState
 	}
+
+	participantA, participantB := s.getParticipants(chat)
 
 	message := &models.Message{
 		ID:          uuid.New().String(),
@@ -77,8 +103,8 @@ func (s *ChatService) SendMessage(ctx context.Context, chatID string, senderID s
 		MessageType: "text",
 		CreatedAt:   time.Now(),
 		// Denormalized for Realtime RLS
-		SellerID: &chat.Trade.SellerID,
-		BuyerID:  &chat.Trade.BuyerID,
+		SellerID: &participantA,
+		BuyerID:  &participantB,
 	}
 
 	if err := s.messageRepo.Create(ctx, message); err != nil {
@@ -87,10 +113,10 @@ func (s *ChatService) SendMessage(ctx context.Context, chatID string, senderID s
 
 	// Notify the other party
 	var recipientID string
-	if chat.Trade.SellerID == senderID {
-		recipientID = chat.Trade.BuyerID
+	if participantA == senderID {
+		recipientID = participantB
 	} else {
-		recipientID = chat.Trade.SellerID
+		recipientID = participantA
 	}
 
 	// Get sender profile for notification
@@ -100,20 +126,19 @@ func (s *ChatService) SendMessage(ctx context.Context, chatID string, senderID s
 		senderName = sender.GetDisplayName()
 	}
 
-	_ = s.notificationService.NotifyNewMessage(ctx, recipientID, chat.Trade.ID, senderName)
+	_ = s.notificationService.NotifyNewMessage(ctx, recipientID, chatID, senderName)
 
 	return message, nil
 }
 
 // GetMessages retrieves messages for a chat
 func (s *ChatService) GetMessages(ctx context.Context, chatID string, userID string, offset, limit int) ([]*models.Message, int, error) {
-	// Verify user is a participant
-	chat, err := s.chatRepo.GetByIDWithTrade(ctx, chatID)
+	chat, err := s.chatRepo.GetByIDWithContext(ctx, chatID)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	if chat.Trade.SellerID != userID && chat.Trade.BuyerID != userID {
+	if !s.isParticipant(chat, userID) {
 		return nil, 0, ErrForbidden
 	}
 
@@ -123,13 +148,12 @@ func (s *ChatService) GetMessages(ctx context.Context, chatID string, userID str
 // MarkMessagesAsRead marks messages as read
 // If messageIDs is empty, marks all unread messages in the chat as read
 func (s *ChatService) MarkMessagesAsRead(ctx context.Context, chatID string, userID string, messageIDs []string) error {
-	// Verify user is a participant
-	chat, err := s.chatRepo.GetByIDWithTrade(ctx, chatID)
+	chat, err := s.chatRepo.GetByIDWithContext(ctx, chatID)
 	if err != nil {
 		return err
 	}
 
-	if chat.Trade.SellerID != userID && chat.Trade.BuyerID != userID {
+	if !s.isParticipant(chat, userID) {
 		return ErrForbidden
 	}
 
@@ -144,10 +168,11 @@ func (s *ChatService) MarkMessagesAsRead(ctx context.Context, chatID string, use
 // ToChatResponse converts a chat model to a DTO response
 func (s *ChatService) ToChatResponse(chat *models.Chat) *dto.ChatResponse {
 	resp := &dto.ChatResponse{
-		ID:        chat.ID,
-		TradeID:   chat.TradeID,
-		CreatedAt: chat.CreatedAt,
-		UpdatedAt: chat.UpdatedAt,
+		ID:           chat.ID,
+		TradeID:      chat.GetTradeID(),
+		ServiceRunID: chat.GetServiceRunID(),
+		CreatedAt:    chat.CreatedAt,
+		UpdatedAt:    chat.UpdatedAt,
 	}
 
 	return resp

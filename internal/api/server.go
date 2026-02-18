@@ -126,6 +126,8 @@ func (s *Server) setupRoutes() {
 	ratingRepo := repository.NewRatingRepository(s.db)
 	statsRepo := repository.NewStatsRepository(s.db)
 	billingEventRepo := repository.NewBillingEventRepository(s.db)
+	serviceRepo := repository.NewServiceRepository(s.db)
+	serviceRunRepo := repository.NewServiceRunRepository(s.db)
 
 	// Create repositories (wishlist, bug reports)
 	wishlistRepo := repository.NewWishlistRepository(s.db)
@@ -140,15 +142,20 @@ func (s *Server) setupRoutes() {
 	listingService.SetWishlistService(wishlistService)
 	statsService := service.NewStatsService(statsRepo, s.redis)
 	listingService.SetStatsService(statsService)
+	serviceService := service.NewServiceService(serviceRepo, profileService, s.redis)
+	serviceRunService := service.NewServiceRunService(serviceRunRepo, transactionRepo, ratingRepo, chatRepo, notificationService, profileService, serviceService, s.redis)
 	offerService := service.NewOfferService(
 		s.db,
 		offerRepo,
 		listingRepo,
+		serviceRepo,
 		tradeRepo,
 		chatRepo,
+		serviceRunRepo,
 		notificationService,
 		profileService,
 		listingService,
+		serviceService,
 		s.redis,
 	)
 	tradeService := service.NewTradeServiceNew(
@@ -205,13 +212,15 @@ func (s *Server) setupRoutes() {
 	chatHandler := v1.NewChatHandler(chatService)
 	notificationHandler := v1.NewNotificationHandler(notificationService)
 	ratingHandler := v1.NewRatingHandler(ratingService)
-	statsHandler := v1.NewStatsHandler(statsService, listingService)
+	statsHandler := v1.NewStatsHandler(statsService, listingService, serviceService)
 	battleNetHandler := v1.NewBattleNetHandler(battleNetService)
 	subscriptionHandler := v1.NewSubscriptionHandler(subscriptionService)
 	webhookHandler := v1.NewWebhookHandler(subscriptionService)
 	wishlistHandler := v1.NewWishlistHandler(wishlistService)
 	premiumHandler := v1.NewPremiumHandler(subscriptionService, listingService)
 	bugReportHandler := v1.NewBugReportHandler(bugReportService)
+	serviceHandler := v1.NewServiceHandler(serviceService)
+	serviceRunHandler := v1.NewServiceRunHandler(serviceRunService)
 
 	// Auth middleware config
 	authConfig := middleware.AuthConfig{
@@ -249,14 +258,14 @@ func (s *Server) setupRoutes() {
 	apiV1.Get("/decline-reasons", offerHandler.GetDeclineReasons)
 	apiV1.Get("/marketplace/stats", statsHandler.GetMarketplaceStats)
 	apiV1.Get("/marketplace/recent", statsHandler.GetRecentListings)
+	apiV1.Get("/marketplace/recent-services", statsHandler.GetRecentServices)
 
 	// Stripe webhook (no auth required)
 	apiV1.Post("/webhooks/stripe", webhookHandler.StripeWebhook)
 
 	// Public service routes
-	apiV1.Post("/services/search", authOptional, listingHandler.SearchServices)
-	apiV1.Get("/services", authOptional, listingHandler.ListServices)
-	apiV1.Get("/services/:id", authOptional, listingHandler.GetService)
+	apiV1.Get("/services", authOptional, serviceHandler.ListProviders)
+	apiV1.Get("/services/providers/:id", authOptional, serviceHandler.GetProviderDetail)
 
 	// Game routes
 	apiV1.Get("/games/:game/categories", func(c *fiber.Ctx) error {
@@ -299,17 +308,25 @@ func (s *Server) setupRoutes() {
 
 	// My listings
 	authenticated.Get("/my/listings", listingHandler.ListMy)
-	authenticated.Get("/my/services", listingHandler.ListMyServices)
+
+	// My services
+	authenticated.Get("/my/services", serviceHandler.ListMy)
 
 	// Listing management
 	authenticated.Post("/listings", listingHandler.Create)
 	authenticated.Patch("/listings/:id", listingHandler.Update)
 	authenticated.Delete("/listings/:id", listingHandler.Delete)
 
-	// Service listing management
-	authenticated.Post("/services", listingHandler.CreateService)
-	authenticated.Patch("/services/:id", listingHandler.UpdateService)
-	authenticated.Delete("/services/:id", listingHandler.DeleteService)
+	// Service management
+	authenticated.Post("/services", serviceHandler.Create)
+	authenticated.Patch("/services/:id", serviceHandler.Update)
+	authenticated.Delete("/services/:id", serviceHandler.Delete)
+
+	// Service run routes
+	authenticated.Get("/service-runs", serviceRunHandler.List)
+	authenticated.Get("/service-runs/:id", serviceRunHandler.GetByID)
+	authenticated.Post("/service-runs/:id/complete", serviceRunHandler.Complete)
+	authenticated.Post("/service-runs/:id/cancel", serviceRunHandler.Cancel)
 
 	// Offer routes
 	authenticated.Get("/offers", offerHandler.List)
@@ -372,7 +389,7 @@ func (s *Server) setupRoutes() {
 		applogger.Log.Info("warmed home:stats cache")
 		listingService.WarmRecentListings(ctx)
 		applogger.Log.Info("warmed home:recent cache")
-		listingService.WarmRecentServices(ctx)
+		serviceService.WarmRecentServices(ctx)
 		applogger.Log.Info("warmed home:recent:services cache")
 	}()
 }

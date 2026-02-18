@@ -133,7 +133,7 @@ func (r *listingRepository) List(ctx context.Context, filter ListingFilter) ([]*
 	return listings, count, nil
 }
 
-func (r *listingRepository) ListBySellerID(ctx context.Context, sellerID string, status string, listingType string, offset, limit int) ([]*models.Listing, int, error) {
+func (r *listingRepository) ListBySellerID(ctx context.Context, sellerID string, status string, offset, limit int) ([]*models.Listing, int, error) {
 	var listings []*models.Listing
 
 	query := r.db.DB().NewSelect().
@@ -142,10 +142,6 @@ func (r *listingRepository) ListBySellerID(ctx context.Context, sellerID string,
 
 	if status != "" {
 		query = query.Where("l.status = ?", status)
-	}
-
-	if listingType != "" {
-		query = query.Where("l.listing_type = ?", listingType)
 	}
 
 	count, err := query.Count(ctx)
@@ -177,14 +173,6 @@ func (r *listingRepository) CountByListingID(ctx context.Context, listingID stri
 }
 
 func (r *listingRepository) applyFilters(query *bun.SelectQuery, filter ListingFilter) *bun.SelectQuery {
-	if filter.ListingType != "" {
-		query = query.Where("l.listing_type = ?", filter.ListingType)
-	}
-
-	if len(filter.ServiceType) > 0 {
-		query = query.Where("l.service_type IN (?)", bun.In(filter.ServiceType))
-	}
-
 	if filter.SellerID != "" {
 		query = query.Where("l.seller_id = ?", filter.SellerID)
 	}

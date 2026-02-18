@@ -16,7 +16,10 @@ const (
 	NotificationTypeTradeRequestRejected NotificationType = "trade_request_rejected"
 	NotificationTypeNewMessage           NotificationType = "new_message"
 	NotificationTypeRatingReceived       NotificationType = "rating_received"
-	NotificationTypeWishlistMatch        NotificationType = "wishlist_match"
+	NotificationTypeWishlistMatch          NotificationType = "wishlist_match"
+	NotificationTypeServiceRunCreated      NotificationType = "service_run_created"
+	NotificationTypeServiceRunCompleted    NotificationType = "service_run_completed"
+	NotificationTypeServiceRunCancelled    NotificationType = "service_run_cancelled"
 )
 
 // Notification represents a user notification

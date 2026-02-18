@@ -21,11 +21,14 @@ type Transaction struct {
 	OfferedItems json.RawMessage `bun:"offered_items,type:jsonb"`
 	CreatedAt    time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 
+	ServiceRunID *string `bun:"service_run_id,type:uuid"`
+
 	// Relations
-	Trade   *Trade   `bun:"rel:belongs-to,join:trade_id=id"`
-	Listing *Listing `bun:"rel:belongs-to,join:listing_id=id"`
-	Seller  *Profile `bun:"rel:belongs-to,join:seller_id=id"`
-	Buyer   *Profile `bun:"rel:belongs-to,join:buyer_id=id"`
+	Trade      *Trade      `bun:"rel:belongs-to,join:trade_id=id"`
+	Listing    *Listing    `bun:"rel:belongs-to,join:listing_id=id"`
+	ServiceRun *ServiceRun `bun:"rel:belongs-to,join:service_run_id=id"`
+	Seller     *Profile    `bun:"rel:belongs-to,join:seller_id=id"`
+	Buyer      *Profile    `bun:"rel:belongs-to,join:buyer_id=id"`
 }
 
 // GetTradeID returns the trade ID or empty string

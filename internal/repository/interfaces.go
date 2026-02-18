@@ -25,7 +25,7 @@ type ListingRepository interface {
 	Update(ctx context.Context, listing *models.Listing) error
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, filter ListingFilter) ([]*models.Listing, int, error)
-	ListBySellerID(ctx context.Context, sellerID string, status string, listingType string, offset, limit int) ([]*models.Listing, int, error)
+	ListBySellerID(ctx context.Context, sellerID string, status string, offset, limit int) ([]*models.Listing, int, error)
 	CountByListingID(ctx context.Context, listingID string) (int, error)
 	CountActiveBySellerID(ctx context.Context, sellerID string) (int, error)
 	IncrementViews(ctx context.Context, id string) error
@@ -48,25 +48,23 @@ type MarketplaceStats struct {
 
 // ListingFilter represents listing query parameters
 type ListingFilter struct {
-	SellerID         string
-	Query            string
-	CatalogItemID    string
-	Game             string
-	Ladder           *bool
-	Hardcore         *bool
-	IsNonRotw        *bool
-	Platforms        []string
-	Region           string
-	Category         string
-	Rarity           string
-	ListingType      string
-	ServiceType      []string
+	SellerID        string
+	Query           string
+	CatalogItemID   string
+	Game            string
+	Ladder          *bool
+	Hardcore        *bool
+	IsNonRotw       *bool
+	Platforms       []string
+	Region          string
+	Category        string
+	Rarity          string
 	AffixFilters    []AffixFilter
 	AskingForFilter *AskingForFilter
-	SortBy           string
-	SortOrder        string
-	Offset           int
-	Limit            int
+	SortBy          string
+	SortOrder       string
+	Offset          int
+	Limit           int
 }
 
 // AffixFilter represents an affix filter for JSONB queries
@@ -97,10 +95,12 @@ type OfferRepository interface {
 
 // OfferFilter represents offer query parameters
 type OfferFilter struct {
-	UserID    string // Required for permission filtering (unless ListingID is set by owner)
+	UserID    string // Required for permission filtering
 	Role      string // buyer, seller, all
 	Status    string // pending, accepted, rejected, cancelled
+	Type      string // item, service, all
 	ListingID string // Filter by specific listing
+	ServiceID string // Filter by specific service
 	Offset    int
 	Limit     int
 }
@@ -124,12 +124,62 @@ type TradeFilter struct {
 	Limit  int
 }
 
+// ServiceRepository defines the interface for service data access
+type ServiceRepository interface {
+	Create(ctx context.Context, service *models.Service) error
+	GetByID(ctx context.Context, id string) (*models.Service, error)
+	GetByIDWithProvider(ctx context.Context, id string) (*models.Service, error)
+	Update(ctx context.Context, service *models.Service) error
+	ListByProviderID(ctx context.Context, providerID string, offset, limit int) ([]*models.Service, int, error)
+	ListProviders(ctx context.Context, filter ServiceProviderFilter) ([]ProviderWithServices, int, error)
+	GetProviderServices(ctx context.Context, providerID string) ([]*models.Service, error)
+	ExistsByProviderAndType(ctx context.Context, providerID string, serviceType string, game string) (bool, error)
+}
+
+// ServiceProviderFilter represents service provider query parameters
+type ServiceProviderFilter struct {
+	ServiceType []string
+	Game        string
+	Ladder      *bool
+	Hardcore    *bool
+	IsNonRotw   *bool
+	Platforms   []string
+	Region      string
+	Offset      int
+	Limit       int
+}
+
+// ProviderWithServices represents a provider with their services
+type ProviderWithServices struct {
+	Provider *models.Profile
+	Services []*models.Service
+}
+
+// ServiceRunRepository defines the interface for service run data access
+type ServiceRunRepository interface {
+	Create(ctx context.Context, serviceRun *models.ServiceRun) error
+	GetByID(ctx context.Context, id string) (*models.ServiceRun, error)
+	GetByIDWithRelations(ctx context.Context, id string) (*models.ServiceRun, error)
+	Update(ctx context.Context, serviceRun *models.ServiceRun) error
+	List(ctx context.Context, filter ServiceRunFilter) ([]*models.ServiceRun, int, error)
+}
+
+// ServiceRunFilter represents service run query parameters
+type ServiceRunFilter struct {
+	UserID string
+	Role   string // provider, client, all
+	Status string // active, completed, cancelled
+	Offset int
+	Limit  int
+}
+
 // ChatRepository defines the interface for chat data access
 type ChatRepository interface {
 	Create(ctx context.Context, chat *models.Chat) error
 	GetByID(ctx context.Context, id string) (*models.Chat, error)
-	GetByIDWithTrade(ctx context.Context, id string) (*models.Chat, error)
+	GetByIDWithContext(ctx context.Context, id string) (*models.Chat, error)
 	GetByTradeID(ctx context.Context, tradeID string) (*models.Chat, error)
+	GetByServiceRunID(ctx context.Context, serviceRunID string) (*models.Chat, error)
 	Update(ctx context.Context, chat *models.Chat) error
 }
 
@@ -155,6 +205,7 @@ type TransactionRepository interface {
 	Create(ctx context.Context, transaction *models.Transaction) error
 	GetByID(ctx context.Context, id string) (*models.Transaction, error)
 	GetByTradeID(ctx context.Context, tradeID string) (*models.Transaction, error)
+	GetByServiceRunID(ctx context.Context, serviceRunID string) (*models.Transaction, error)
 	GetPriceHistory(ctx context.Context, itemName string, days int) ([]PriceHistoryRecord, error)
 	GetSalesBySeller(ctx context.Context, sellerID string, offset, limit int) ([]SaleRecord, int, error)
 }

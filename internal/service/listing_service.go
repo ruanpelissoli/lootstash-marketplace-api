@@ -20,20 +20,20 @@ import (
 )
 
 const (
-	listingCacheTTL      = 15 * time.Minute
-	listingDTOCacheTTL   = 1 * time.Hour
-	maxRecentListings    = 20
-	FreeListingLimit     = 10
+	listingCacheTTL    = 15 * time.Minute
+	listingDTOCacheTTL = 1 * time.Hour
+	maxRecentListings  = 20
+	FreeListingLimit   = 10
 )
 
 // ListingService handles listing business logic
 type ListingService struct {
-	repo             repository.ListingRepository
-	profileService   *ProfileService
-	redis            *cache.RedisClient
-	invalidator      *cache.Invalidator
-	wishlistService  *WishlistService
-	statsService     *StatsService
+	repo            repository.ListingRepository
+	profileService  *ProfileService
+	redis           *cache.RedisClient
+	invalidator     *cache.Invalidator
+	wishlistService *WishlistService
+	statsService    *StatsService
 }
 
 // NewListingService creates a new listing service
@@ -103,7 +103,6 @@ func (s *ListingService) Create(ctx context.Context, sellerID string, req *dto.C
 	listing := &models.Listing{
 		ID:             uuid.New().String(),
 		SellerID:       sellerID,
-		ListingType:    "item",
 		Name:           req.Name,
 		ItemType:       req.ItemType,
 		Rarity:         req.Rarity,
@@ -112,6 +111,7 @@ func (s *ListingService) Create(ctx context.Context, sellerID string, req *dto.C
 		Suffixes:       req.Suffixes,
 		Runes:          req.Runes,
 		AskingFor:      req.AskingFor,
+		Amount:         1,
 		Game:           req.Game,
 		Ladder:         req.Ladder,
 		Hardcore:       req.Hardcore,
@@ -146,6 +146,9 @@ func (s *ListingService) Create(ctx context.Context, sellerID string, req *dto.C
 	if req.CatalogItemID != "" {
 		listing.CatalogItemID = &req.CatalogItemID
 	}
+	if req.Amount != nil {
+		listing.Amount = *req.Amount
+	}
 
 	if err := s.repo.Create(ctx, listing); err != nil {
 		log.Error("failed to create listing in database", "error", err.Error(), "listing_id", listing.ID)
@@ -170,7 +173,7 @@ func (s *ListingService) Create(ctx context.Context, sellerID string, req *dto.C
 		go s.statsService.RefreshHomeStats(context.Background())
 	}
 
-	// Trigger async wishlist matching (items only)
+	// Trigger async wishlist matching
 	if s.wishlistService != nil {
 		log.Info("triggering async wishlist matching",
 			"listing_id", listing.ID,
@@ -197,100 +200,6 @@ func (s *ListingService) Create(ctx context.Context, sellerID string, req *dto.C
 		)
 		fmt.Printf("[LISTING] WARNING: wishlist service is nil, skipping matching for listing: id=%s\n", listing.ID)
 	}
-
-	return listing, nil
-}
-
-// CreateService creates a new service listing
-func (s *ListingService) CreateService(ctx context.Context, sellerID string, req *dto.CreateServiceListingRequest) (*models.Listing, error) {
-	log := logger.FromContext(ctx)
-	log.Info("creating new service listing",
-		"seller_id", sellerID,
-		"name", req.Name,
-		"service_type", req.ServiceType,
-		"game", req.Game,
-	)
-
-	// Check listing limit for free users (shared limit with item listings)
-	profile, err := s.profileService.GetByID(ctx, sellerID)
-	if err != nil {
-		log.Error("failed to get seller profile", "error", err.Error(), "seller_id", sellerID)
-		return nil, err
-	}
-	if !profile.IsPremium {
-		count, err := s.repo.CountActiveBySellerID(ctx, sellerID)
-		if err != nil {
-			log.Error("failed to count active listings", "error", err.Error(), "seller_id", sellerID)
-			return nil, err
-		}
-		if count >= FreeListingLimit {
-			log.Warn("listing limit reached for free user", "seller_id", sellerID, "count", count)
-			return nil, ErrListingLimitReached
-		}
-	}
-
-	// Deduplicate platforms
-	seen := make(map[string]bool)
-	var uniquePlatforms []string
-	for _, p := range req.Platforms {
-		if !seen[p] {
-			seen[p] = true
-			uniquePlatforms = append(uniquePlatforms, p)
-		}
-	}
-
-	listing := &models.Listing{
-		ID:             uuid.New().String(),
-		SellerID:       sellerID,
-		ListingType:    "service",
-		Name:           req.Name,
-		ServiceType:    &req.ServiceType,
-		AskingFor:      req.AskingFor,
-		Game:           req.Game,
-		Ladder:         req.Ladder,
-		Hardcore:       req.Hardcore,
-		IsNonRotw:      req.IsNonRotw,
-		Platforms:      uniquePlatforms,
-		Region:         req.Region,
-		SellerTimezone: profile.Timezone,
-		Status:         "active",
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
-		ExpiresAt:      time.Now().Add(30 * 24 * time.Hour),
-	}
-
-	if req.Description != "" {
-		listing.Description = &req.Description
-	}
-	if req.AskingPrice != "" {
-		listing.AskingPrice = &req.AskingPrice
-	}
-	if req.Notes != "" {
-		listing.Notes = &req.Notes
-	}
-
-	if err := s.repo.Create(ctx, listing); err != nil {
-		log.Error("failed to create service listing in database", "error", err.Error(), "listing_id", listing.ID)
-		return nil, err
-	}
-
-	log.Info("service listing created successfully",
-		"listing_id", listing.ID,
-		"seller_id", sellerID,
-		"name", listing.Name,
-		"service_type", req.ServiceType,
-	)
-
-	// Push to recent services cache
-	listing.Seller = profile
-	s.pushToRecentServices(ctx, listing)
-
-	// Refresh home stats (activeListings changed)
-	if s.statsService != nil {
-		go s.statsService.RefreshHomeStats(context.Background())
-	}
-
-	// No wishlist matching for service listings
 
 	return listing, nil
 }
@@ -346,9 +255,6 @@ func (s *ListingService) Update(ctx context.Context, id string, userID string, r
 	if req.Notes != nil {
 		listing.Notes = req.Notes
 	}
-	if req.Description != nil {
-		listing.Description = req.Description
-	}
 	if req.Status != nil {
 		listing.Status = *req.Status
 	}
@@ -386,8 +292,8 @@ func (s *ListingService) Delete(ctx context.Context, id string, userID string) e
 	_ = s.invalidator.InvalidateListing(ctx, id)
 	_ = s.invalidator.InvalidateListingDTO(ctx, id)
 
-	// Remove from the appropriate recent cache
-	s.RemoveFromRecentByListing(ctx, listing)
+	// Remove from recent cache
+	s.removeFromRecentListings(ctx, listing.ID)
 
 	// Refresh home stats (activeListings changed)
 	if s.statsService != nil {
@@ -432,7 +338,6 @@ func (s *ListingService) List(ctx context.Context, req *dto.ListingFilterRequest
 		SellerID:        req.SellerID,
 		Query:           req.Q,
 		CatalogItemID:   req.CatalogItemID,
-		ListingType:     req.ListingType,
 		Game:            req.Game,
 		Ladder:          req.Ladder,
 		Hardcore:        req.Hardcore,
@@ -458,8 +363,8 @@ func (s *ListingService) ListByFilter(ctx context.Context, filter repository.Lis
 }
 
 // ListBySellerID retrieves listings for a specific seller
-func (s *ListingService) ListBySellerID(ctx context.Context, sellerID string, status string, listingType string, offset, limit int) ([]*models.Listing, int, error) {
-	return s.repo.ListBySellerID(ctx, sellerID, status, listingType, offset, limit)
+func (s *ListingService) ListBySellerID(ctx context.Context, sellerID string, status string, offset, limit int) ([]*models.Listing, int, error) {
+	return s.repo.ListBySellerID(ctx, sellerID, status, offset, limit)
 }
 
 // GetTradeCount returns the number of active trade requests for a listing
@@ -472,16 +377,15 @@ func (s *ListingService) ToCardResponse(listing *models.Listing) *dto.ListingCar
 	resp := &dto.ListingCardResponse{
 		ID:             listing.ID,
 		SellerID:       listing.SellerID,
-		ListingType:    listing.ListingType,
 		Name:           listing.Name,
 		ItemType:       listing.ItemType,
 		Rarity:         listing.Rarity,
 		ImageURL:       listing.GetImageURL(),
-		ServiceType:    listing.GetServiceType(),
-		Description:    listing.GetDescription(),
 		CatalogItemID:  listing.GetCatalogItemID(),
+		Stats:          s.transformCardStats(listing.Stats),
 		AskingFor:      listing.AskingFor,
 		AskingPrice:    listing.GetAskingPrice(),
+		Amount:         listing.Amount,
 		Game:           listing.Game,
 		Ladder:         listing.Ladder,
 		Hardcore:       listing.Hardcore,
@@ -491,10 +395,6 @@ func (s *ListingService) ToCardResponse(listing *models.Listing) *dto.ListingCar
 		SellerTimezone: listing.GetSellerTimezone(),
 		Views:          listing.Views,
 		CreatedAt:      listing.CreatedAt,
-	}
-
-	if !listing.IsService() {
-		resp.Stats = s.transformCardStats(listing.Stats)
 	}
 
 	if listing.Seller != nil {
@@ -509,17 +409,21 @@ func (s *ListingService) ToResponse(listing *models.Listing) *dto.ListingRespons
 	resp := &dto.ListingResponse{
 		ID:             listing.ID,
 		SellerID:       listing.SellerID,
-		ListingType:    listing.ListingType,
 		Name:           listing.Name,
 		ItemType:       listing.ItemType,
 		Rarity:         listing.Rarity,
 		ImageURL:       listing.GetImageURL(),
 		Category:       listing.Category,
-		ServiceType:    listing.GetServiceType(),
-		Description:    listing.GetDescription(),
 		CatalogItemID:  listing.GetCatalogItemID(),
+		Stats:          s.transformAllStats(listing.Stats),
+		Suffixes:       listing.Suffixes,
+		Runes:          s.transformRunes(listing.Runes),
+		RuneOrder:      listing.GetRuneOrder(),
+		BaseItemCode:   listing.GetBaseItemCode(),
+		BaseItemName:   listing.GetBaseItemName(),
 		AskingFor:      listing.AskingFor,
 		AskingPrice:    listing.GetAskingPrice(),
+		Amount:         listing.Amount,
 		Notes:          listing.GetNotes(),
 		Game:           listing.Game,
 		Ladder:         listing.Ladder,
@@ -532,15 +436,6 @@ func (s *ListingService) ToResponse(listing *models.Listing) *dto.ListingRespons
 		Views:          listing.Views,
 		CreatedAt:      listing.CreatedAt,
 		ExpiresAt:      listing.ExpiresAt,
-	}
-
-	if !listing.IsService() {
-		resp.Stats = s.transformAllStats(listing.Stats)
-		resp.Suffixes = listing.Suffixes
-		resp.Runes = s.transformRunes(listing.Runes)
-		resp.RuneOrder = listing.GetRuneOrder()
-		resp.BaseItemCode = listing.GetBaseItemCode()
-		resp.BaseItemName = listing.GetBaseItemName()
 	}
 
 	if listing.Seller != nil {
@@ -711,34 +606,14 @@ func (s *ListingService) pushToRecentListings(ctx context.Context, listing *mode
 	_ = s.redis.LTrim(ctx, cache.HomeRecentKey(), 0, int64(maxRecentListings-1))
 }
 
-// pushToRecentServices adds a service listing to the home:recent:services Redis list
-func (s *ListingService) pushToRecentServices(ctx context.Context, listing *models.Listing) {
-	cardResp := s.ToCardResponse(listing)
-	data, err := json.Marshal(cardResp)
-	if err != nil {
-		return
-	}
-	_ = s.redis.LPush(ctx, cache.HomeRecentServicesKey(), string(data))
-	_ = s.redis.LTrim(ctx, cache.HomeRecentServicesKey(), 0, int64(maxRecentListings-1))
-}
-
 // removeFromRecentListings removes a listing from the home:recent Redis list by ID
 func (s *ListingService) removeFromRecentListings(ctx context.Context, id string) {
 	removeFromRecentCache(s.redis, ctx, cache.HomeRecentKey(), id)
 }
 
-// removeFromRecentServices removes a service from the home:recent:services Redis list by ID
-func (s *ListingService) removeFromRecentServices(ctx context.Context, id string) {
-	removeFromRecentCache(s.redis, ctx, cache.HomeRecentServicesKey(), id)
-}
-
-// RemoveFromRecentByListing removes a listing from the appropriate recent cache based on its type
+// RemoveFromRecentByListing removes a listing from the recent cache
 func (s *ListingService) RemoveFromRecentByListing(ctx context.Context, listing *models.Listing) {
-	if listing.IsService() {
-		s.removeFromRecentServices(ctx, listing.ID)
-	} else {
-		s.removeFromRecentListings(ctx, listing.ID)
-	}
+	s.removeFromRecentListings(ctx, listing.ID)
 }
 
 // removeFromRecentCache removes an entry by ID from a Redis list cache
@@ -760,11 +635,6 @@ func removeFromRecentCache(redis *cache.RedisClient, ctx context.Context, key st
 // GetRecentListings returns recent listings from the home:recent cache
 func (s *ListingService) GetRecentListings(ctx context.Context) ([]dto.ListingCardResponse, error) {
 	return getRecentFromCache(s.redis, ctx, cache.HomeRecentKey())
-}
-
-// GetRecentServices returns recent services from the home:recent:services cache
-func (s *ListingService) GetRecentServices(ctx context.Context) ([]dto.ListingCardResponse, error) {
-	return getRecentFromCache(s.redis, ctx, cache.HomeRecentServicesKey())
 }
 
 // getRecentFromCache returns recent entries from a Redis list cache
@@ -801,13 +671,12 @@ func parsePlatforms(raw string) []string {
 	return result
 }
 
-// WarmRecentListings populates the home:recent cache on startup (items only)
+// WarmRecentListings populates the home:recent cache on startup
 func (s *ListingService) WarmRecentListings(ctx context.Context) {
 	filter := repository.ListingFilter{
-		ListingType: "item",
-		SortBy:      "created_at",
-		SortOrder:   "desc",
-		Limit:       maxRecentListings,
+		SortBy:    "created_at",
+		SortOrder: "desc",
+		Limit:     maxRecentListings,
 	}
 
 	listings, _, err := s.repo.List(ctx, filter)
@@ -831,36 +700,5 @@ func (s *ListingService) WarmRecentListings(ctx context.Context) {
 			continue
 		}
 		_ = s.redis.LPush(ctx, cache.HomeRecentKey(), string(data))
-	}
-}
-
-// WarmRecentServices populates the home:recent:services cache on startup
-func (s *ListingService) WarmRecentServices(ctx context.Context) {
-	filter := repository.ListingFilter{
-		ListingType: "service",
-		SortBy:      "created_at",
-		SortOrder:   "desc",
-		Limit:       maxRecentListings,
-	}
-
-	listings, _, err := s.repo.List(ctx, filter)
-	if err != nil {
-		logger.Log.Warn("failed to warm recent services", "error", err.Error())
-		return
-	}
-
-	if len(listings) == 0 {
-		return
-	}
-
-	_ = s.redis.Del(ctx, cache.HomeRecentServicesKey())
-
-	for i := len(listings) - 1; i >= 0; i-- {
-		cardResp := s.ToCardResponse(listings[i])
-		data, err := json.Marshal(cardResp)
-		if err != nil {
-			continue
-		}
-		_ = s.redis.LPush(ctx, cache.HomeRecentServicesKey(), string(data))
 	}
 }

@@ -58,6 +58,20 @@ func (r *transactionRepository) GetByTradeID(ctx context.Context, tradeID string
 	return transaction, nil
 }
 
+func (r *transactionRepository) GetByServiceRunID(ctx context.Context, serviceRunID string) (*models.Transaction, error) {
+	transaction := new(models.Transaction)
+	err := r.db.DB().NewSelect().
+		Model(transaction).
+		Relation("Seller").
+		Relation("Buyer").
+		Where("tx.service_run_id = ?", serviceRunID).
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return transaction, nil
+}
+
 func (r *transactionRepository) GetPriceHistory(ctx context.Context, itemName string, days int) ([]PriceHistoryRecord, error) {
 	var results []PriceHistoryRecord
 	err := r.db.DB().NewSelect().
@@ -80,9 +94,7 @@ func (r *transactionRepository) GetSalesBySeller(ctx context.Context, sellerID s
 	// Count total sales for pagination
 	count, err := r.db.DB().NewSelect().
 		TableExpr("d2.transactions AS tx").
-		Join("INNER JOIN d2.trades AS t ON t.id = tx.trade_id").
 		Where("tx.seller_id = ?", sellerID).
-		Where("t.status = ?", "completed").
 		Count(ctx)
 	if err != nil {
 		logger.FromContext(ctx).Error("failed to count sales",
@@ -111,12 +123,11 @@ func (r *transactionRepository) GetSalesBySeller(ctx context.Context, sellerID s
 		ColumnExpr("r.comment AS review_comment").
 		ColumnExpr("r.created_at AS reviewed_at").
 		TableExpr("d2.transactions AS tx").
-		Join("INNER JOIN d2.trades AS t ON t.id = tx.trade_id").
-		Join("INNER JOIN d2.listings AS l ON l.id = tx.listing_id").
+		Join("LEFT JOIN d2.trades AS t ON t.id = tx.trade_id").
+		Join("LEFT JOIN d2.listings AS l ON l.id = tx.listing_id").
 		Join("INNER JOIN d2.profiles AS buyer ON buyer.id = tx.buyer_id").
 		Join("LEFT JOIN d2.ratings AS r ON r.transaction_id = tx.id AND r.rater_id = tx.buyer_id").
 		Where("tx.seller_id = ?", sellerID).
-		Where("t.status = ?", "completed").
 		Order("t.completed_at DESC").
 		Limit(limit).
 		Offset(offset).

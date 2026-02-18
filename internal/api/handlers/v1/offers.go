@@ -39,7 +39,7 @@ func (h *OfferHandler) List(c *fiber.Ctx) error {
 		})
 	}
 
-	offers, count, err := h.service.List(c.Context(), userID, filter.Role, filter.Status, filter.ListingID, filter.GetOffset(), filter.GetLimit())
+	offers, count, err := h.service.List(c.Context(), userID, filter.Role, filter.Status, filter.Type, filter.ListingID, filter.ServiceID, filter.GetOffset(), filter.GetLimit())
 	if err != nil {
 		logger.FromContext(c.UserContext()).Error("failed to list offers",
 			"error", err.Error(),
@@ -123,28 +123,27 @@ func (h *OfferHandler) Create(c *fiber.Ctx) error {
 		if errors.Is(err, sql.ErrNoRows) {
 			return c.Status(fiber.StatusNotFound).JSON(dto.ErrorResponse{
 				Error:   "not_found",
-				Message: "Listing not found",
+				Message: "Listing or service not found",
 				Code:    404,
 			})
 		}
 		if errors.Is(err, service.ErrSelfAction) {
 			return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
 				Error:   "bad_request",
-				Message: "You cannot make an offer on your own listing",
+				Message: "You cannot make an offer on your own listing or service",
 				Code:    400,
 			})
 		}
 		if errors.Is(err, service.ErrInvalidState) {
 			return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
 				Error:   "bad_request",
-				Message: "Listing is not available for offers",
+				Message: "Not available for offers",
 				Code:    400,
 			})
 		}
 		logger.FromContext(c.UserContext()).Error("failed to create offer",
 			"error", err.Error(),
 			"user_id", userID,
-			"listing_id", req.ListingID,
 		)
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
 			Error:   "internal_error",
@@ -161,7 +160,7 @@ func (h *OfferHandler) Accept(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 	id := c.Params("id")
 
-	offer, trade, chat, err := h.service.Accept(c.Context(), id, userID)
+	offer, trade, serviceRun, chat, err := h.service.Accept(c.Context(), id, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return c.Status(fiber.StatusNotFound).JSON(dto.ErrorResponse{
@@ -173,7 +172,7 @@ func (h *OfferHandler) Accept(c *fiber.Ctx) error {
 		if errors.Is(err, service.ErrForbidden) {
 			return c.Status(fiber.StatusForbidden).JSON(dto.ErrorResponse{
 				Error:   "forbidden",
-				Message: "Only the listing owner can accept offers",
+				Message: "Only the owner can accept offers",
 				Code:    403,
 			})
 		}
@@ -196,11 +195,19 @@ func (h *OfferHandler) Accept(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(dto.AcceptOfferResponse{
-		Offer:   h.service.ToResponse(offer),
-		TradeID: trade.ID,
-		ChatID:  chat.ID,
-	})
+	resp := dto.AcceptOfferResponse{
+		Offer:  h.service.ToResponse(offer),
+		ChatID: chat.ID,
+	}
+
+	if trade != nil {
+		resp.TradeID = trade.ID
+	}
+	if serviceRun != nil {
+		resp.ServiceRunID = serviceRun.ID
+	}
+
+	return c.JSON(resp)
 }
 
 // Reject handles POST /api/v1/offers/:id/reject
@@ -237,7 +244,7 @@ func (h *OfferHandler) Reject(c *fiber.Ctx) error {
 		if errors.Is(err, service.ErrForbidden) {
 			return c.Status(fiber.StatusForbidden).JSON(dto.ErrorResponse{
 				Error:   "forbidden",
-				Message: "Only the listing owner can reject offers",
+				Message: "Only the owner can reject offers",
 				Code:    403,
 			})
 		}

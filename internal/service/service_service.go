@@ -1,0 +1,382 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/api/dto"
+	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/cache"
+	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/logger"
+	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/models"
+	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/repository"
+)
+
+const maxRecentServices = 20
+
+// ServiceService handles service business logic
+type ServiceService struct {
+	repo           repository.ServiceRepository
+	profileService *ProfileService
+	redis          *cache.RedisClient
+	invalidator    *cache.Invalidator
+}
+
+// NewServiceService creates a new service service
+func NewServiceService(repo repository.ServiceRepository, profileService *ProfileService, redis *cache.RedisClient) *ServiceService {
+	return &ServiceService{
+		repo:           repo,
+		profileService: profileService,
+		redis:          redis,
+		invalidator:    cache.NewInvalidator(redis),
+	}
+}
+
+// Create creates a new service
+func (s *ServiceService) Create(ctx context.Context, providerID string, req *dto.CreateServiceRequest) (*models.Service, error) {
+	log := logger.FromContext(ctx)
+	log.Info("creating new service",
+		"provider_id", providerID,
+		"service_type", req.ServiceType,
+		"game", req.Game,
+	)
+
+	// Check uniqueness: one service per type per provider per game
+	exists, err := s.repo.ExistsByProviderAndType(ctx, providerID, req.ServiceType, req.Game)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, ErrAlreadyExists
+	}
+
+	// Deduplicate platforms
+	seen := make(map[string]bool)
+	var uniquePlatforms []string
+	for _, p := range req.Platforms {
+		if !seen[p] {
+			seen[p] = true
+			uniquePlatforms = append(uniquePlatforms, p)
+		}
+	}
+
+	service := &models.Service{
+		ID:          uuid.New().String(),
+		ProviderID:  providerID,
+		ServiceType: req.ServiceType,
+		Name:        req.Name,
+		AskingFor:   req.AskingFor,
+		Game:        req.Game,
+		Ladder:      req.Ladder,
+		Hardcore:    req.Hardcore,
+		IsNonRotw:   req.IsNonRotw,
+		Platforms:   uniquePlatforms,
+		Region:      req.Region,
+		Status:      "active",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	if req.Description != "" {
+		service.Description = &req.Description
+	}
+	if req.AskingPrice != "" {
+		service.AskingPrice = &req.AskingPrice
+	}
+	if req.Notes != "" {
+		service.Notes = &req.Notes
+	}
+
+	if err := s.repo.Create(ctx, service); err != nil {
+		log.Error("failed to create service", "error", err.Error())
+		return nil, err
+	}
+
+	log.Info("service created successfully",
+		"service_id", service.ID,
+		"provider_id", providerID,
+		"service_type", req.ServiceType,
+	)
+	fmt.Printf("[SERVICE] Created service: id=%s type=%s provider=%s\n", service.ID, req.ServiceType, providerID)
+
+	// Invalidate provider cache
+	_ = s.invalidator.InvalidateServiceProviders(ctx, service.Game)
+
+	// Push to recent services cache
+	profile, _ := s.profileService.GetByID(ctx, providerID)
+	service.Provider = profile
+	s.pushToRecentServices(ctx, service)
+
+	return service, nil
+}
+
+// Update updates a service
+func (s *ServiceService) Update(ctx context.Context, id string, userID string, req *dto.UpdateServiceRequest) (*models.Service, error) {
+	service, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if service.ProviderID != userID {
+		return nil, ErrForbidden
+	}
+
+	if req.Name != nil {
+		service.Name = *req.Name
+	}
+	if req.Description != nil {
+		service.Description = req.Description
+	}
+	if req.AskingPrice != nil {
+		service.AskingPrice = req.AskingPrice
+	}
+	if req.AskingFor != nil {
+		service.AskingFor = req.AskingFor
+	}
+	if req.Notes != nil {
+		service.Notes = req.Notes
+	}
+	if len(req.Platforms) > 0 {
+		service.Platforms = req.Platforms
+	}
+	if req.Region != nil {
+		service.Region = *req.Region
+	}
+	service.UpdatedAt = time.Now()
+
+	if err := s.repo.Update(ctx, service); err != nil {
+		return nil, err
+	}
+
+	_ = s.invalidator.InvalidateService(ctx, id)
+	_ = s.invalidator.InvalidateServiceProviders(ctx, service.Game)
+
+	return service, nil
+}
+
+// Delete cancels a service (soft delete)
+func (s *ServiceService) Delete(ctx context.Context, id string, userID string) error {
+	service, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if service.ProviderID != userID {
+		return ErrForbidden
+	}
+
+	service.Status = "cancelled"
+	service.UpdatedAt = time.Now()
+	if err := s.repo.Update(ctx, service); err != nil {
+		return err
+	}
+
+	_ = s.invalidator.InvalidateService(ctx, id)
+	_ = s.invalidator.InvalidateServiceProviders(ctx, service.Game)
+
+	// Remove from recent services cache
+	s.removeFromRecentServices(ctx, id)
+
+	return nil
+}
+
+// GetByID retrieves a service by ID
+func (s *ServiceService) GetByID(ctx context.Context, id string) (*models.Service, error) {
+	return s.repo.GetByIDWithProvider(ctx, id)
+}
+
+// ListMyServices lists services for a provider
+func (s *ServiceService) ListMyServices(ctx context.Context, providerID string, offset, limit int) ([]*models.Service, int, error) {
+	return s.repo.ListByProviderID(ctx, providerID, offset, limit)
+}
+
+// ListProviders lists provider cards with their services
+func (s *ServiceService) ListProviders(ctx context.Context, filter repository.ServiceProviderFilter) ([]dto.ProviderCardResponse, int, error) {
+	providers, count, err := s.repo.ListProviders(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	results := make([]dto.ProviderCardResponse, 0, len(providers))
+	for _, pw := range providers {
+		results = append(results, s.ToProviderCardResponse(pw.Provider, pw.Services))
+	}
+
+	return results, count, nil
+}
+
+// GetProviderDetail returns a single provider card. Accepts UUID or username.
+func (s *ServiceService) GetProviderDetail(ctx context.Context, identifier string) (*dto.ProviderCardResponse, error) {
+	profile, err := s.profileService.GetByIdentifier(ctx, identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	services, err := s.repo.GetProviderServices(ctx, profile.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(services) == 0 {
+		return nil, ErrNotFound
+	}
+
+	card := s.ToProviderCardResponse(profile, services)
+	return &card, nil
+}
+
+// ToServiceResponse converts a service model to a DTO
+func (s *ServiceService) ToServiceResponse(service *models.Service) *dto.ServiceResponse {
+	return &dto.ServiceResponse{
+		ID:          service.ID,
+		ServiceType: service.ServiceType,
+		Name:        service.Name,
+		Description: service.GetDescription(),
+		AskingPrice: service.GetAskingPrice(),
+		AskingFor:   service.AskingFor,
+		Game:        service.Game,
+		Ladder:      service.Ladder,
+		Hardcore:    service.Hardcore,
+		IsNonRotw:   service.IsNonRotw,
+		Platforms:   service.Platforms,
+		Region:      service.Region,
+		Notes:       service.GetNotes(),
+		Status:      service.Status,
+		CreatedAt:   service.CreatedAt,
+		UpdatedAt:   service.UpdatedAt,
+	}
+}
+
+// ToProviderCardResponse converts a provider and services to a provider card DTO
+func (s *ServiceService) ToProviderCardResponse(provider *models.Profile, services []*models.Service) dto.ProviderCardResponse {
+	serviceResponses := make([]dto.ServiceResponse, 0, len(services))
+	for _, svc := range services {
+		serviceResponses = append(serviceResponses, *s.ToServiceResponse(svc))
+	}
+
+	return dto.ProviderCardResponse{
+		Provider: s.profileService.ToResponse(provider),
+		Services: serviceResponses,
+	}
+}
+
+// ToRecentServiceResponse converts a service model to a recent service DTO (includes provider)
+func (s *ServiceService) ToRecentServiceResponse(service *models.Service) *dto.RecentServiceResponse {
+	resp := &dto.RecentServiceResponse{
+		ID:          service.ID,
+		ServiceType: service.ServiceType,
+		Name:        service.Name,
+		Game:        service.Game,
+		Ladder:      service.Ladder,
+		Hardcore:    service.Hardcore,
+		IsNonRotw:   service.IsNonRotw,
+		Platforms:   service.Platforms,
+		Region:      service.Region,
+		CreatedAt:   service.CreatedAt,
+	}
+	if service.Provider != nil {
+		resp.Provider = s.profileService.ToResponse(service.Provider)
+	}
+	return resp
+}
+
+// pushToRecentServices adds a service to the home:recent:services Redis list
+func (s *ServiceService) pushToRecentServices(ctx context.Context, service *models.Service) {
+	resp := s.ToRecentServiceResponse(service)
+	data, err := json.Marshal(resp)
+	if err != nil {
+		return
+	}
+	_ = s.redis.LPush(ctx, cache.HomeRecentServicesKey(), string(data))
+	_ = s.redis.LTrim(ctx, cache.HomeRecentServicesKey(), 0, int64(maxRecentServices-1))
+}
+
+// removeFromRecentServices removes a service from the home:recent:services Redis list by ID
+func (s *ServiceService) removeFromRecentServices(ctx context.Context, id string) {
+	items, err := s.redis.LRange(ctx, cache.HomeRecentServicesKey(), 0, int64(maxRecentServices-1))
+	if err != nil || len(items) == 0 {
+		return
+	}
+	for _, item := range items {
+		var svc dto.RecentServiceResponse
+		if json.Unmarshal([]byte(item), &svc) == nil && svc.ID == id {
+			_ = s.redis.LRem(ctx, cache.HomeRecentServicesKey(), 1, item)
+			return
+		}
+	}
+}
+
+// GetRecentServices returns recent services from the home:recent:services cache
+func (s *ServiceService) GetRecentServices(ctx context.Context) ([]dto.RecentServiceResponse, error) {
+	items, err := s.redis.LRange(ctx, cache.HomeRecentServicesKey(), 0, int64(maxRecentServices-1))
+	if err != nil {
+		return nil, err
+	}
+	results := make([]dto.RecentServiceResponse, 0, len(items))
+	for _, item := range items {
+		var svc dto.RecentServiceResponse
+		if json.Unmarshal([]byte(item), &svc) == nil {
+			results = append(results, svc)
+		}
+	}
+	return results, nil
+}
+
+// WarmRecentServices populates the home:recent:services cache on startup
+func (s *ServiceService) WarmRecentServices(ctx context.Context) {
+	filter := repository.ServiceProviderFilter{
+		Limit: maxRecentServices,
+	}
+
+	providers, _, err := s.repo.ListProviders(ctx, filter)
+	if err != nil {
+		logger.Log.Warn("failed to warm recent services", "error", err.Error())
+		return
+	}
+
+	// Collect all services from all providers, sorted by created_at desc
+	type serviceWithProvider struct {
+		service  *models.Service
+		provider *models.Profile
+	}
+	var all []serviceWithProvider
+	for _, pw := range providers {
+		for _, svc := range pw.Services {
+			svc.Provider = pw.Provider
+			all = append(all, serviceWithProvider{service: svc, provider: pw.Provider})
+		}
+	}
+
+	// Sort by created_at desc
+	for i := 0; i < len(all); i++ {
+		for j := i + 1; j < len(all); j++ {
+			if all[j].service.CreatedAt.After(all[i].service.CreatedAt) {
+				all[i], all[j] = all[j], all[i]
+			}
+		}
+	}
+
+	// Cap at maxRecentServices
+	if len(all) > maxRecentServices {
+		all = all[:maxRecentServices]
+	}
+
+	if len(all) == 0 {
+		return
+	}
+
+	// Delete existing key
+	_ = s.redis.Del(ctx, cache.HomeRecentServicesKey())
+
+	// Push in reverse order so newest is at index 0
+	for i := len(all) - 1; i >= 0; i-- {
+		resp := s.ToRecentServiceResponse(all[i].service)
+		data, err := json.Marshal(resp)
+		if err != nil {
+			continue
+		}
+		_ = s.redis.LPush(ctx, cache.HomeRecentServicesKey(), string(data))
+	}
+}

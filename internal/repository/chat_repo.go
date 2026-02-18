@@ -24,7 +24,6 @@ func (r *chatRepository) Create(ctx context.Context, chat *models.Chat) error {
 	if err != nil {
 		logger.FromContext(ctx).Error("failed to create chat",
 			"error", err.Error(),
-			"trade_id", chat.TradeID,
 		)
 	}
 	return err
@@ -42,7 +41,8 @@ func (r *chatRepository) GetByID(ctx context.Context, id string) (*models.Chat, 
 	return chat, nil
 }
 
-func (r *chatRepository) GetByIDWithTrade(ctx context.Context, id string) (*models.Chat, error) {
+// GetByIDWithContext loads a chat with both Trade and ServiceRun relations
+func (r *chatRepository) GetByIDWithContext(ctx context.Context, id string) (*models.Chat, error) {
 	chat := new(models.Chat)
 	err := r.db.DB().NewSelect().
 		Model(chat).
@@ -50,6 +50,10 @@ func (r *chatRepository) GetByIDWithTrade(ctx context.Context, id string) (*mode
 		Relation("Trade.Seller").
 		Relation("Trade.Buyer").
 		Relation("Trade.Listing").
+		Relation("ServiceRun").
+		Relation("ServiceRun.Provider").
+		Relation("ServiceRun.Client").
+		Relation("ServiceRun.Service").
 		Where("c.id = ?", id).
 		Scan(ctx)
 	if err != nil {
@@ -63,6 +67,18 @@ func (r *chatRepository) GetByTradeID(ctx context.Context, tradeID string) (*mod
 	err := r.db.DB().NewSelect().
 		Model(chat).
 		Where("c.trade_id = ?", tradeID).
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return chat, nil
+}
+
+func (r *chatRepository) GetByServiceRunID(ctx context.Context, serviceRunID string) (*models.Chat, error) {
+	chat := new(models.Chat)
+	err := r.db.DB().NewSelect().
+		Model(chat).
+		Where("c.service_run_id = ?", serviceRunID).
 		Scan(ctx)
 	if err != nil {
 		return nil, err

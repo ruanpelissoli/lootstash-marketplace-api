@@ -219,7 +219,7 @@ Content-Type: application/json
 
 ### GET /api/v1/listings
 
-List and filter item listings. Returns only item listings (`listingType: "item"`). For service listings, use `GET /api/v1/services`.
+List and filter item listings.
 
 **Note:** Listings with active trades are automatically hidden from public results.
 
@@ -276,7 +276,6 @@ GET /api/v1/listings?game=diablo2&ladder=true&category=helm&rarity=unique&page=1
         "usernameColor": "#FF5733",
         "createdAt": "2024-01-01T00:00:00Z"
       },
-      "listingType": "item",
       "name": "Harlequin Crest",
       "itemType": "Shako",
       "rarity": "unique",
@@ -347,7 +346,6 @@ Get detailed information about a specific listing.
   "id": "uuid",
   "sellerId": "uuid",
   "seller": { ... },
-  "listingType": "item",
   "name": "Harlequin Crest",
   "itemType": "Shako",
   "rarity": "unique",
@@ -500,7 +498,6 @@ Content-Type: application/json
   "askingFor": [...],
   "askingPrice": "2 Ist (optional)",
   "notes": "Updated notes (optional)",
-  "description": "Updated description (optional, max 2000 chars, service listings only)",
   "status": "cancelled (optional: active|cancelled)"
 }
 ```
@@ -582,38 +579,218 @@ Authorization: Bearer <token>
 
 ---
 
-## Service Listings
+## Services
 
-Service listings allow players to sell in-game services (rushes, socket quests, uber kills, etc.). The trading flow after listing is identical to item listings: offer → accept → trade → chat → complete → rate.
+Services are standalone entities (not listings) where providers offer in-game services. Services are permanent until the provider cancels them. The marketplace shows one card per provider with all their services, sorted by premium status and rating.
 
 ### GET /api/v1/services
 
-List and filter service listings.
+List service providers (grouped by provider, sorted by premium + rating).
 
-**Note:** Listings with active trades are automatically hidden from public results.
-
-**Headers:** None required (optional auth for personalized results)
+**Headers:** None required (optional auth)
 
 **Query Parameters:**
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| q | string | Text search in service name |
-| serviceType | string | Service type filter (rush, crush, grush, sockets, waypoints, ubers, colossal_ancients) |
+| serviceType | string | Comma-separated service types (rush, crush, grush, sockets, waypoints, ubers, colossal_ancients) |
 | game | string | Game filter (e.g., "diablo2") |
-| ladder | boolean | Filter by ladder (true/false) |
+| ladder | boolean | Filter by ladder |
 | hardcore | boolean | Filter by hardcore mode |
-| isNonRotw | boolean | Filter by non-RotW |
 | platforms | string | Comma-separated platforms (pc, xbox, playstation, switch) |
 | region | string | Region filter (americas, europe, asia) |
-| sortBy | string | Sort field (created_at, name, asking_price) |
-| sortOrder | string | Sort direction (asc, desc) |
 | page | number | Page number (default: 1) |
 | perPage | number | Items per page (default: 20, max: 100) |
 
-**Example Request:**
+**Response:**
+```json
+{
+  "data": [
+    {
+      "provider": {
+        "id": "uuid",
+        "username": "string",
+        "displayName": "string",
+        "avatarUrl": "string",
+        "isPremium": true,
+        "averageRating": 4.8,
+        "ratingCount": 25,
+        ...
+      },
+      "services": [
+        {
+          "id": "uuid",
+          "serviceType": "rush",
+          "name": "Hell Rush - Fast",
+          "description": "Full hell rush, all waypoints included",
+          "askingPrice": "Ist",
+          "askingFor": [...],
+          "game": "diablo2",
+          "ladder": true,
+          "hardcore": false,
+          "platforms": ["pc"],
+          "region": "americas",
+          "notes": "Available evenings EST",
+          "status": "active",
+          "createdAt": "2024-01-01T00:00:00Z",
+          "updatedAt": "2024-01-01T00:00:00Z"
+        }
+      ]
+    }
+  ],
+  "page": 1,
+  "perPage": 20,
+  "totalCount": 15,
+  "totalPages": 1
+}
 ```
-GET /api/v1/services?game=diablo2&serviceType=rush&ladder=true&page=1&perPage=20
+
+---
+
+### GET /api/v1/services/providers/:id
+
+Get a specific provider's services.
+
+**Headers:** None required
+
+**Path Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | uuid | Provider profile ID |
+
+**Response:**
+```json
+{
+  "provider": { ... },
+  "services": [...]
+}
 ```
+
+**Error Responses:**
+- `404` - Provider not found or has no services
+
+---
+
+### POST /api/v1/services
+
+Create a new service (auth required). One service per type per provider per game.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "serviceType": "rush (required: rush|crush|grush|sockets|waypoints|ubers|colossal_ancients)",
+  "name": "Hell Rush - Fast (required, max 100 chars)",
+  "description": "Full hell rush (optional, max 2000 chars)",
+  "askingFor": [{"type": "rune", "name": "Ist"}],
+  "askingPrice": "Ist (optional, max 100 chars)",
+  "notes": "Available evenings EST (optional, max 500 chars)",
+  "game": "diablo2 (required)",
+  "ladder": true,
+  "hardcore": false,
+  "platforms": ["pc"],
+  "region": "americas (required: americas|europe|asia)"
+}
+```
+
+**Response:** `201 Created`
+
+**Error Responses:**
+- `400` - Validation error
+- `401` - Unauthorized
+- `409` - Already have a service of this type for this game
+
+---
+
+### PATCH /api/v1/services/:id
+
+Update a service (owner only).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body (all fields optional):**
+```json
+{
+  "name": "Updated name",
+  "description": "Updated description",
+  "askingPrice": "2 Ist",
+  "askingFor": [...],
+  "notes": "Updated notes",
+  "platforms": ["pc", "xbox"],
+  "region": "europe"
+}
+```
+
+**Error Responses:**
+- `401` - Unauthorized
+- `403` - Forbidden (not owner)
+- `404` - Service not found
+
+---
+
+### DELETE /api/v1/services/:id
+
+Cancel a service (owner only).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Error Responses:**
+- `401` - Unauthorized
+- `403` - Forbidden (not owner)
+- `404` - Service not found
+
+---
+
+### GET /api/v1/my/services
+
+List the current user's services.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| page | number | Page number (default: 1) |
+| perPage | number | Items per page (default: 20, max: 100) |
+
+**Response:** Paginated list of `ServiceResponse` objects.
+
+---
+
+## Service Runs
+
+Service runs are created when a service offer is accepted. Unlike trades, the service stays active after a service run completes — providers can accept multiple concurrent service runs.
+
+### GET /api/v1/service-runs
+
+List the current user's service runs.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| status | string | Filter by status (active, completed, cancelled) |
+| role | string | Filter by role (provider, client, all) |
+| page | number | Page number (default: 1) |
+| perPage | number | Items per page (default: 20, max: 100) |
 
 **Response:**
 ```json
@@ -621,218 +798,24 @@ GET /api/v1/services?game=diablo2&serviceType=rush&ladder=true&page=1&perPage=20
   "data": [
     {
       "id": "uuid",
-      "sellerId": "uuid",
-      "seller": { ... },
-      "listingType": "service",
-      "name": "Hell Rush - Fast",
-      "serviceType": "rush",
-      "description": "Full hell rush, all waypoints included",
-      "askingFor": [...],
-      "askingPrice": "Ist",
-      "game": "diablo2",
-      "ladder": true,
-      "hardcore": false,
-      "isNonRotw": false,
-      "platforms": ["pc"],
-      "region": "americas",
-      "views": 42,
-      "createdAt": "2024-01-01T00:00:00Z"
+      "serviceId": "uuid",
+      "service": { ... },
+      "offerId": "uuid",
+      "providerId": "uuid",
+      "provider": { ... },
+      "clientId": "uuid",
+      "client": { ... },
+      "offeredItems": [...],
+      "status": "active",
+      "chatId": "uuid",
+      "transactionId": null,
+      "canRate": false,
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z",
+      "completedAt": null,
+      "cancelledAt": null
     }
   ],
-  "page": 1,
-  "perPage": 20,
-  "totalCount": 25,
-  "totalPages": 2
-}
-```
-
----
-
-### GET /api/v1/services/:id
-
-Get detailed information about a service listing. Increments view count.
-
-**Headers:** None required
-
-**Path Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| id | uuid | Service listing ID |
-
-**Response:**
-```json
-{
-  "id": "uuid",
-  "sellerId": "uuid",
-  "seller": { ... },
-  "listingType": "service",
-  "name": "Hell Rush - Fast",
-  "serviceType": "rush",
-  "description": "Full hell rush, all waypoints included. Done in 15 minutes.",
-  "askingFor": [...],
-  "askingPrice": "Ist",
-  "notes": "Available evenings EST",
-  "game": "diablo2",
-  "ladder": true,
-  "hardcore": false,
-  "isNonRotw": false,
-  "platforms": ["pc"],
-  "region": "americas",
-  "status": "active",
-  "views": 42,
-  "createdAt": "2024-01-01T00:00:00Z",
-  "expiresAt": "2024-01-31T00:00:00Z",
-  "updatedAt": "2024-01-01T00:00:00Z",
-  "tradeCount": 1
-}
-```
-
-**Error Responses:**
-- `404` - Listing not found
-
----
-
-### POST /api/v1/services
-
-Create a new service listing.
-
-**Headers:**
-```
-Authorization: Bearer <token>
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "name": "Hell Rush - Fast (required, max 100 chars)",
-  "serviceType": "rush (required: rush|crush|grush|sockets|waypoints|ubers|colossal_ancients)",
-  "description": "Full hell rush with all waypoints (optional, max 2000 chars)",
-  "askingFor": [
-    {"type": "rune", "name": "Ist"}
-  ],
-  "askingPrice": "Ist (optional, max 100 chars)",
-  "notes": "Available evenings EST (optional, max 500 chars)",
-  "game": "diablo2 (required)",
-  "ladder": true,
-  "hardcore": false,
-  "isNonRotw": false,
-  "platforms": ["pc"],
-  "region": "americas (required: americas|europe|asia)"
-}
-```
-
-**Response:** `201 Created`
-```json
-{
-  "id": "uuid",
-  "sellerId": "uuid",
-  "listingType": "service",
-  "name": "Hell Rush - Fast",
-  "serviceType": "rush",
-  ...
-}
-```
-
-**Error Responses:**
-- `400` - Validation error
-- `401` - Unauthorized
-- `403` - Listing limit reached (free users: max 10 active listings, shared with item listings)
-
----
-
-### PATCH /api/v1/services/:id
-
-Update a service listing (owner only).
-
-**Headers:**
-```
-Authorization: Bearer <token>
-Content-Type: application/json
-```
-
-**Path Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| id | uuid | Service listing ID |
-
-**Request Body:**
-```json
-{
-  "askingFor": [...],
-  "askingPrice": "2 Ist (optional)",
-  "notes": "Updated notes (optional)",
-  "description": "Updated description (optional, max 2000 chars)",
-  "status": "cancelled (optional: active|cancelled)"
-}
-```
-
-**Response:**
-```json
-{
-  "id": "uuid",
-  "listingType": "service",
-  ...
-}
-```
-
-**Error Responses:**
-- `400` - Validation error
-- `401` - Unauthorized
-- `403` - Forbidden (not owner)
-- `404` - Listing not found
-
----
-
-### DELETE /api/v1/services/:id
-
-Cancel a service listing (owner only).
-
-**Headers:**
-```
-Authorization: Bearer <token>
-```
-
-**Path Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| id | uuid | Service listing ID |
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Listing cancelled"
-}
-```
-
-**Error Responses:**
-- `401` - Unauthorized
-- `403` - Forbidden (not owner)
-- `404` - Listing not found
-
----
-
-### GET /api/v1/my/services
-
-Get the current user's service listings.
-
-**Headers:**
-```
-Authorization: Bearer <token>
-```
-
-**Query Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| status | string | Filter by status (active, pending, completed, cancelled) |
-| page | number | Page number (default: 1) |
-| perPage | number | Items per page (default: 20, max: 100) |
-
-**Response:**
-```json
-{
-  "data": [...],
   "page": 1,
   "perPage": 20,
   "totalCount": 5,
@@ -840,60 +823,60 @@ Authorization: Bearer <token>
 }
 ```
 
+---
+
+### GET /api/v1/service-runs/:id
+
+Get detailed information about a service run.
+
+**Response includes additional fields:**
+- `canComplete` - Whether the current user can complete this service run
+- `canCancel` - Whether the service run can be cancelled
+- `canMessage` - Whether messaging is available
+
 **Error Responses:**
 - `401` - Unauthorized
+- `403` - Forbidden (not a participant)
+- `404` - Service run not found
 
 ---
 
-### GET /api/v1/games/:game/service-types
+### POST /api/v1/service-runs/:id/complete
 
-Get available service types for a specific game.
+Mark a service run as completed (either party). Creates a transaction record for rating.
 
-**Headers:** None required
-
-**Path Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| game | string | Game code (e.g., "diablo2") |
-
-**Response:**
-```json
-[
-  {"code": "rush", "name": "Rush"},
-  {"code": "crush", "name": "Crush"},
-  {"code": "grush", "name": "Glitch Rush"},
-  {"code": "sockets", "name": "Socket Quest"},
-  {"code": "waypoints", "name": "Waypoints"},
-  {"code": "ubers", "name": "Ubers"},
-  {"code": "colossal_ancients", "name": "Colossal Ancients"}
-]
-```
+**Note:** The service stays active — the provider can continue accepting new service runs.
 
 **Error Responses:**
-- `404` - Game not found
+- `400` - Service run not active
+- `401` - Unauthorized
+- `403` - Forbidden (not a participant)
+- `404` - Service run not found
 
 ---
 
-### Making Offers on Services
+### POST /api/v1/service-runs/:id/cancel
 
-Offers on service listings work exactly like item listings — use the same offers API:
+Cancel an active service run (either party).
 
-```
-POST /api/v1/offers
+**Request Body (optional):**
+```json
 {
-  "listingId": "<service-listing-uuid>",
-  "offeredItems": [...],
-  "message": "I need a hell rush for my sorc"
+  "reason": "Changed my mind (optional)"
 }
 ```
 
-The full trade flow (offer → accept → trade → chat → complete → rate) is identical.
+**Error Responses:**
+- `400` - Service run not active
+- `401` - Unauthorized
+- `403` - Forbidden (not a participant)
+- `404` - Service run not found
 
 ---
 
 ## Offers
 
-Offers represent initial trade proposals on listings. When an offer is accepted, a Trade and Chat are created.
+Offers represent initial trade proposals on listings or services. When an offer is accepted, a Trade (for items) or Service Run (for services) and Chat are created.
 
 ### GET /api/v1/offers
 
@@ -907,9 +890,11 @@ Authorization: Bearer <token>
 **Query Parameters:**
 | Parameter | Type | Description |
 |-----------|------|-------------|
+| type | string | Filter by type (item, service, all) |
 | status | string | Filter by status (pending, accepted, rejected, cancelled) |
 | role | string | Filter by role (buyer, seller, all) |
 | listingId | uuid | Filter by listing ID (get all offers on a specific listing - seller only) |
+| serviceId | uuid | Filter by service ID (get all offers on a specific service - provider only) |
 | page | number | Page number (default: 1) |
 | perPage | number | Items per page (default: 20, max: 100) |
 
@@ -934,8 +919,11 @@ GET /api/v1/offers?listingId=<listing-uuid>&status=pending
   "data": [
     {
       "id": "uuid",
+      "type": "item",
       "listingId": "uuid",
       "listing": { ... },
+      "serviceId": null,
+      "service": null,
       "requesterId": "uuid",
       "requester": { ... },
       "offeredItems": [
@@ -947,6 +935,7 @@ GET /api/v1/offers?listingId=<listing-uuid>&status=pending
       "declineReason": null,
       "declineNote": "",
       "tradeId": null,
+      "serviceRunId": null,
       "createdAt": "2024-01-01T00:00:00Z",
       "updatedAt": "2024-01-01T00:00:00Z",
       "acceptedAt": null
@@ -982,8 +971,11 @@ Authorization: Bearer <token>
 ```json
 {
   "id": "uuid",
+  "type": "item",
   "listingId": "uuid",
   "listing": { ... },
+  "serviceId": null,
+  "service": null,
   "requesterId": "uuid",
   "requester": { ... },
   "offeredItems": [...],
@@ -992,6 +984,7 @@ Authorization: Bearer <token>
   "declineReason": null,
   "declineNote": "",
   "tradeId": null,
+  "serviceRunId": null,
   "createdAt": "2024-01-01T00:00:00Z",
   "updatedAt": "2024-01-01T00:00:00Z",
   "acceptedAt": null
@@ -1007,7 +1000,7 @@ Authorization: Bearer <token>
 
 ### POST /api/v1/offers
 
-Create a new offer on a listing.
+Create a new offer on a listing or service.
 
 **Headers:**
 ```
@@ -1018,7 +1011,9 @@ Content-Type: application/json
 **Request Body:**
 ```json
 {
-  "listingId": "uuid (required)",
+  "type": "item (required: item|service)",
+  "listingId": "uuid (required for type=item)",
+  "serviceId": "uuid (required for type=service)",
   "offeredItems": [
     {"type": "rune", "name": "Ist"},
     {"type": "rune", "name": "Mal"}
@@ -1031,7 +1026,9 @@ Content-Type: application/json
 ```json
 {
   "id": "uuid",
+  "type": "item",
   "listingId": "uuid",
+  "serviceId": null,
   "requesterId": "uuid",
   "offeredItems": [...],
   "message": "string",
@@ -1042,17 +1039,17 @@ Content-Type: application/json
 ```
 
 **Error Responses:**
-- `400` - Validation error / Cannot offer on own listing / Listing not available
+- `400` - Validation error / Cannot offer on own listing/service / Listing/service not available
 - `401` - Unauthorized
-- `404` - Listing not found
+- `404` - Listing or service not found
 
 ---
 
 ### POST /api/v1/offers/:id/accept
 
-Accept an offer (listing owner only). This creates a Trade and Chat for communication.
+Accept an offer (listing/service owner only). For item offers, this creates a Trade and Chat. For service offers, this creates a Service Run and Chat.
 
-**Note:** When an offer is accepted, the listing is hidden from public search results until the trade is completed or cancelled.
+**Note:** When an item offer is accepted, the listing is hidden from public search results until the trade is completed or cancelled. For service offers, the service stays active.
 
 **Headers:**
 ```
@@ -1074,7 +1071,8 @@ Authorization: Bearer <token>
     "tradeId": "uuid",
     ...
   },
-  "tradeId": "uuid",
+  "tradeId": "uuid (for item offers)",
+  "serviceRunId": "uuid (for service offers)",
   "chatId": "uuid"
 }
 ```
@@ -1082,7 +1080,7 @@ Authorization: Bearer <token>
 **Error Responses:**
 - `400` - Offer not pending / Listing already has active trade
 - `401` - Unauthorized
-- `403` - Forbidden (not listing owner)
+- `403` - Forbidden (not listing/service owner)
 - `404` - Offer not found
 
 ---
@@ -1399,7 +1397,7 @@ Content-Type: application/json
 
 ## Chats
 
-Chats are created when an offer is accepted and are linked to a Trade.
+Chats are created when an offer is accepted. They are linked to either a Trade (for item offers) or a Service Run (for service offers).
 
 ### GET /api/v1/chats/:id
 
@@ -1420,6 +1418,7 @@ Authorization: Bearer <token>
 {
   "id": "uuid",
   "tradeId": "uuid",
+  "serviceRunId": "uuid",
   "createdAt": "2024-01-01T00:00:00Z",
   "updatedAt": "2024-01-01T00:00:00Z"
 }
@@ -1580,7 +1579,7 @@ Authorization: Bearer <token>
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | unread | boolean | Filter to unread only |
-| type | string | Filter by type (trade_request_received, trade_request_accepted, trade_request_rejected, new_message, rating_received, wishlist_match) |
+| type | string | Filter by type (trade_request_received, trade_request_accepted, trade_request_rejected, new_message, rating_received, wishlist_match, service_run_created, service_run_completed, service_run_cancelled) |
 | page | number | Page number (default: 1) |
 | perPage | number | Items per page (default: 20, max: 100) |
 
@@ -2041,7 +2040,7 @@ Get item categories for a specific game.
 
 ### GET /api/v1/games/:game/service-types
 
-Get available service types for a specific game. See the [Service Listings](#service-listings) section for full documentation.
+Get available service types for a specific game. See the [Services](#services) section for full documentation.
 
 ---
 
@@ -2215,10 +2214,12 @@ X-RateLimit-Reset: 1704067200
 
 ## Trade Flow Summary
 
-The trading system follows this flow:
+The trading system supports two flows: item trades and service runs.
+
+### Item Flow
 
 ```
-1. Buyer creates offer:     POST /api/v1/offers     -> Offer(pending)
+1. Buyer creates offer:     POST /api/v1/offers (type: "item") -> Offer(pending)
 2. Seller accepts:          POST /api/v1/offers/:id/accept -> Offer(accepted) + Trade(active) + Chat created
                             Listing is hidden from public search results
 3. Chat happens:            POST /api/v1/chats/:id/messages -> Messages in Chat
@@ -2228,6 +2229,19 @@ The trading system follows this flow:
                             Returns transactionId for rating
 6. Both can rate:           POST /api/v1/ratings -> Rating created (bilateral ratings)
                             Each party can rate once per transaction
+```
+
+### Service Flow
+
+```
+1. Client creates offer:    POST /api/v1/offers (type: "service") -> Offer(pending)
+2. Provider accepts:        POST /api/v1/offers/:id/accept -> Offer(accepted) + ServiceRun(active) + Chat created
+                            Service stays active for new offers
+3. Chat happens:            POST /api/v1/chats/:id/messages
+4. Either cancels:          POST /api/v1/service-runs/:id/cancel -> ServiceRun(cancelled)
+   OR
+5. Either completes:        POST /api/v1/service-runs/:id/complete -> ServiceRun(completed) + Transaction created
+6. Both can rate:           POST /api/v1/ratings
 ```
 
 **Rating System:**
