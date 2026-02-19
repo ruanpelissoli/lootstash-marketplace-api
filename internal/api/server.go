@@ -322,6 +322,8 @@ func (s *Server) setupRoutes() {
 	authenticated.Post("/services", serviceHandler.Create)
 	authenticated.Patch("/services/:id", serviceHandler.Update)
 	authenticated.Delete("/services/:id", serviceHandler.Delete)
+	authenticated.Post("/services/:id/pause", serviceHandler.Pause)
+	authenticated.Post("/services/:id/resume", serviceHandler.Resume)
 
 	// Service run routes
 	authenticated.Get("/service-runs", serviceRunHandler.List)

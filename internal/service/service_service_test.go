@@ -635,3 +635,166 @@ func TestServiceListMyServices_Success(t *testing.T) {
 
 	serviceRepo.AssertExpectations(t)
 }
+
+// ---------------------------------------------------------------------------
+// Pause
+// ---------------------------------------------------------------------------
+
+func TestServicePause_Success(t *testing.T) {
+	profileRepo := new(mocks.MockProfileRepository)
+	serviceRepo := new(mocks.MockServiceRepository)
+	svc, _ := setupServiceService(profileRepo, serviceRepo, newTestRedis())
+
+	ctx := context.Background()
+
+	existing := testServiceModel(testServiceID, testProviderID)
+	assert.Equal(t, "active", existing.Status, "precondition: service starts as active")
+
+	serviceRepo.On("GetByID", mock.Anything, testServiceID).Return(existing, nil)
+	serviceRepo.On("Update", mock.Anything, mock.AnythingOfType("*models.Service")).Return(nil)
+
+	err := svc.Pause(ctx, testServiceID, testProviderID)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "paused", existing.Status, "status should be set to paused")
+
+	serviceRepo.AssertExpectations(t)
+}
+
+func TestServicePause_NotOwner(t *testing.T) {
+	profileRepo := new(mocks.MockProfileRepository)
+	serviceRepo := new(mocks.MockServiceRepository)
+	svc, _ := setupServiceService(profileRepo, serviceRepo, newTestRedis())
+
+	ctx := context.Background()
+	otherUser := "other-user-999"
+
+	existing := testServiceModel(testServiceID, testProviderID)
+	serviceRepo.On("GetByID", mock.Anything, testServiceID).Return(existing, nil)
+
+	err := svc.Pause(ctx, testServiceID, otherUser)
+
+	assert.ErrorIs(t, err, ErrForbidden)
+	assert.Equal(t, "active", existing.Status, "status should remain unchanged")
+
+	serviceRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	serviceRepo.AssertExpectations(t)
+}
+
+func TestServicePause_AlreadyPaused(t *testing.T) {
+	profileRepo := new(mocks.MockProfileRepository)
+	serviceRepo := new(mocks.MockServiceRepository)
+	svc, _ := setupServiceService(profileRepo, serviceRepo, newTestRedis())
+
+	ctx := context.Background()
+
+	existing := testServiceModel(testServiceID, testProviderID, withServiceStatus("paused"))
+	serviceRepo.On("GetByID", mock.Anything, testServiceID).Return(existing, nil)
+
+	err := svc.Pause(ctx, testServiceID, testProviderID)
+
+	assert.ErrorIs(t, err, ErrInvalidState)
+
+	serviceRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	serviceRepo.AssertExpectations(t)
+}
+
+func TestServicePause_Cancelled(t *testing.T) {
+	profileRepo := new(mocks.MockProfileRepository)
+	serviceRepo := new(mocks.MockServiceRepository)
+	svc, _ := setupServiceService(profileRepo, serviceRepo, newTestRedis())
+
+	ctx := context.Background()
+
+	existing := testServiceModel(testServiceID, testProviderID, withServiceStatus("cancelled"))
+	serviceRepo.On("GetByID", mock.Anything, testServiceID).Return(existing, nil)
+
+	err := svc.Pause(ctx, testServiceID, testProviderID)
+
+	assert.ErrorIs(t, err, ErrInvalidState)
+
+	serviceRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	serviceRepo.AssertExpectations(t)
+}
+
+// ---------------------------------------------------------------------------
+// Resume
+// ---------------------------------------------------------------------------
+
+func TestServiceResume_Success(t *testing.T) {
+	profileRepo := new(mocks.MockProfileRepository)
+	serviceRepo := new(mocks.MockServiceRepository)
+	svc, _ := setupServiceService(profileRepo, serviceRepo, newTestRedis())
+
+	ctx := context.Background()
+
+	existing := testServiceModel(testServiceID, testProviderID, withServiceStatus("paused"))
+	assert.Equal(t, "paused", existing.Status, "precondition: service starts as paused")
+
+	serviceRepo.On("GetByID", mock.Anything, testServiceID).Return(existing, nil)
+	serviceRepo.On("Update", mock.Anything, mock.AnythingOfType("*models.Service")).Return(nil)
+	profileRepo.On("GetByID", mock.Anything, testProviderID).Return(testProfile(testProviderID), nil)
+
+	err := svc.Resume(ctx, testServiceID, testProviderID)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "active", existing.Status, "status should be set to active")
+
+	serviceRepo.AssertExpectations(t)
+}
+
+func TestServiceResume_NotOwner(t *testing.T) {
+	profileRepo := new(mocks.MockProfileRepository)
+	serviceRepo := new(mocks.MockServiceRepository)
+	svc, _ := setupServiceService(profileRepo, serviceRepo, newTestRedis())
+
+	ctx := context.Background()
+	otherUser := "other-user-999"
+
+	existing := testServiceModel(testServiceID, testProviderID, withServiceStatus("paused"))
+	serviceRepo.On("GetByID", mock.Anything, testServiceID).Return(existing, nil)
+
+	err := svc.Resume(ctx, testServiceID, otherUser)
+
+	assert.ErrorIs(t, err, ErrForbidden)
+	assert.Equal(t, "paused", existing.Status, "status should remain unchanged")
+
+	serviceRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	serviceRepo.AssertExpectations(t)
+}
+
+func TestServiceResume_AlreadyActive(t *testing.T) {
+	profileRepo := new(mocks.MockProfileRepository)
+	serviceRepo := new(mocks.MockServiceRepository)
+	svc, _ := setupServiceService(profileRepo, serviceRepo, newTestRedis())
+
+	ctx := context.Background()
+
+	existing := testServiceModel(testServiceID, testProviderID) // default: active
+	serviceRepo.On("GetByID", mock.Anything, testServiceID).Return(existing, nil)
+
+	err := svc.Resume(ctx, testServiceID, testProviderID)
+
+	assert.ErrorIs(t, err, ErrInvalidState)
+
+	serviceRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	serviceRepo.AssertExpectations(t)
+}
+
+func TestServiceResume_Cancelled(t *testing.T) {
+	profileRepo := new(mocks.MockProfileRepository)
+	serviceRepo := new(mocks.MockServiceRepository)
+	svc, _ := setupServiceService(profileRepo, serviceRepo, newTestRedis())
+
+	ctx := context.Background()
+
+	existing := testServiceModel(testServiceID, testProviderID, withServiceStatus("cancelled"))
+	serviceRepo.On("GetByID", mock.Anything, testServiceID).Return(existing, nil)
+
+	err := svc.Resume(ctx, testServiceID, testProviderID)
+
+	assert.ErrorIs(t, err, ErrInvalidState)
+
+	serviceRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	serviceRepo.AssertExpectations(t)
+}

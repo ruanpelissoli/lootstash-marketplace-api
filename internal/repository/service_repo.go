@@ -235,7 +235,7 @@ func (r *serviceRepository) ExistsByProviderAndType(ctx context.Context, provide
 		Where("provider_id = ?", providerID).
 		Where("service_type = ?", serviceType).
 		Where("game = ?", game).
-		Where("status = ?", "active").
+		Where("status IN (?)", bun.In([]string{"active", "paused"})).
 		Exists(ctx)
 	return exists, err
 }

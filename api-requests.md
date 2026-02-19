@@ -581,7 +581,7 @@ Authorization: Bearer <token>
 
 ## Services
 
-Services are standalone entities (not listings) where providers offer in-game services. Services are permanent until the provider cancels them. The marketplace shows one card per provider with all their services, sorted by premium status and rating.
+Services are standalone entities (not listings) where providers offer in-game services. Services are permanent until the provider cancels them. Providers can also **pause** a service to temporarily hide it from search, and **resume** it later. The marketplace shows one card per provider with all their active services, sorted by premium status and rating. Paused and cancelled services are hidden from public search but still visible in the provider's own "my services" list.
 
 ### GET /api/v1/services
 
@@ -738,7 +738,7 @@ Content-Type: application/json
 
 ### DELETE /api/v1/services/:id
 
-Cancel a service (owner only).
+Cancel a service (owner only). This is a permanent soft delete — cancelled services cannot be resumed.
 
 **Headers:**
 ```
@@ -749,6 +749,66 @@ Authorization: Bearer <token>
 - `401` - Unauthorized
 - `403` - Forbidden (not owner)
 - `404` - Service not found
+
+---
+
+### POST /api/v1/services/:id/pause
+
+Pause an active service (owner only). Paused services are hidden from public search results but can be resumed later. The provider's card will not show paused services.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Path Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | uuid | Service ID |
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Service paused"
+}
+```
+
+**Error Responses:**
+- `401` - Unauthorized
+- `403` - Forbidden (not owner)
+- `404` - Service not found
+- `409` - Only active services can be paused
+
+---
+
+### POST /api/v1/services/:id/resume
+
+Resume a paused service (owner only). The service becomes visible again in public search results.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Path Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | uuid | Service ID |
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Service resumed"
+}
+```
+
+**Error Responses:**
+- `401` - Unauthorized
+- `403` - Forbidden (not owner)
+- `404` - Service not found
+- `409` - Only paused services can be resumed
 
 ---
 

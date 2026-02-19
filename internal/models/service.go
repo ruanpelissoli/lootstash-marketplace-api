@@ -38,6 +38,11 @@ func (s *Service) IsActive() bool {
 	return s.Status == "active"
 }
 
+// IsPaused returns true if the service is paused
+func (s *Service) IsPaused() bool {
+	return s.Status == "paused"
+}
+
 // GetDescription returns the description or empty string
 func (s *Service) GetDescription() string {
 	if s.Description != nil {

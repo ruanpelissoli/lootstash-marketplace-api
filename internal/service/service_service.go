@@ -182,6 +182,68 @@ func (s *ServiceService) Delete(ctx context.Context, id string, userID string) e
 	return nil
 }
 
+// Pause pauses an active service (hides from public search)
+func (s *ServiceService) Pause(ctx context.Context, id string, userID string) error {
+	service, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if service.ProviderID != userID {
+		return ErrForbidden
+	}
+
+	if service.Status != "active" {
+		return ErrInvalidState
+	}
+
+	service.Status = "paused"
+	service.UpdatedAt = time.Now()
+	if err := s.repo.Update(ctx, service); err != nil {
+		return err
+	}
+
+	_ = s.invalidator.InvalidateService(ctx, id)
+	_ = s.invalidator.InvalidateServiceProviders(ctx, service.Game)
+
+	// Remove from recent services cache
+	s.removeFromRecentServices(ctx, id)
+
+	return nil
+}
+
+// Resume resumes a paused service (makes it visible in public search again)
+func (s *ServiceService) Resume(ctx context.Context, id string, userID string) error {
+	service, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if service.ProviderID != userID {
+		return ErrForbidden
+	}
+
+	if service.Status != "paused" {
+		return ErrInvalidState
+	}
+
+	service.Status = "active"
+	service.UpdatedAt = time.Now()
+	if err := s.repo.Update(ctx, service); err != nil {
+		return err
+	}
+
+	_ = s.invalidator.InvalidateService(ctx, id)
+	_ = s.invalidator.InvalidateServiceProviders(ctx, service.Game)
+
+	// Push back to recent services cache
+	profile, _ := s.profileService.GetByID(ctx, service.ProviderID)
+	service.Provider = profile
+	s.pushToRecentServices(ctx, service)
+
+	return nil
+}
+
 // GetByID retrieves a service by ID
 func (s *ServiceService) GetByID(ctx context.Context, id string) (*models.Service, error) {
 	return s.repo.GetByIDWithProvider(ctx, id)

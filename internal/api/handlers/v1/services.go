@@ -279,6 +279,92 @@ func (h *ServiceHandler) Delete(c *fiber.Ctx) error {
 	return c.JSON(dto.SuccessResponse{Success: true, Message: "Service cancelled"})
 }
 
+// Pause handles POST /api/v1/services/:id/pause
+func (h *ServiceHandler) Pause(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	id := c.Params("id")
+
+	err := h.service.Pause(c.Context(), id, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.Status(fiber.StatusNotFound).JSON(dto.ErrorResponse{
+				Error:   "not_found",
+				Message: "Service not found",
+				Code:    404,
+			})
+		}
+		if errors.Is(err, service.ErrForbidden) {
+			return c.Status(fiber.StatusForbidden).JSON(dto.ErrorResponse{
+				Error:   "forbidden",
+				Message: "You can only pause your own services",
+				Code:    403,
+			})
+		}
+		if errors.Is(err, service.ErrInvalidState) {
+			return c.Status(fiber.StatusConflict).JSON(dto.ErrorResponse{
+				Error:   "invalid_state",
+				Message: "Only active services can be paused",
+				Code:    409,
+			})
+		}
+		logger.FromContext(c.UserContext()).Error("failed to pause service",
+			"error", err.Error(),
+			"service_id", id,
+			"user_id", userID,
+		)
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "internal_error",
+			Message: "Failed to pause service",
+			Code:    500,
+		})
+	}
+
+	return c.JSON(dto.SuccessResponse{Success: true, Message: "Service paused"})
+}
+
+// Resume handles POST /api/v1/services/:id/resume
+func (h *ServiceHandler) Resume(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	id := c.Params("id")
+
+	err := h.service.Resume(c.Context(), id, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.Status(fiber.StatusNotFound).JSON(dto.ErrorResponse{
+				Error:   "not_found",
+				Message: "Service not found",
+				Code:    404,
+			})
+		}
+		if errors.Is(err, service.ErrForbidden) {
+			return c.Status(fiber.StatusForbidden).JSON(dto.ErrorResponse{
+				Error:   "forbidden",
+				Message: "You can only resume your own services",
+				Code:    403,
+			})
+		}
+		if errors.Is(err, service.ErrInvalidState) {
+			return c.Status(fiber.StatusConflict).JSON(dto.ErrorResponse{
+				Error:   "invalid_state",
+				Message: "Only paused services can be resumed",
+				Code:    409,
+			})
+		}
+		logger.FromContext(c.UserContext()).Error("failed to resume service",
+			"error", err.Error(),
+			"service_id", id,
+			"user_id", userID,
+		)
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "internal_error",
+			Message: "Failed to resume service",
+			Code:    500,
+		})
+	}
+
+	return c.JSON(dto.SuccessResponse{Success: true, Message: "Service resumed"})
+}
+
 // ListMy handles GET /api/v1/my/services
 func (h *ServiceHandler) ListMy(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
