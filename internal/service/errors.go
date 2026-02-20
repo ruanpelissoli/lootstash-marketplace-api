@@ -23,4 +23,7 @@ var (
 
 	// ErrInvalidPriceID indicates the provided Stripe price ID is not allowed
 	ErrInvalidPriceID = errors.New("invalid price ID")
+
+	// ErrRefreshCooldown indicates the listing cannot be refreshed yet
+	ErrRefreshCooldown = errors.New("refresh cooldown not elapsed")
 )

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -927,6 +928,184 @@ func TestParsePlatforms(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Refresh
+// ---------------------------------------------------------------------------
+
+func TestListingRefresh_FreeUser_Success(t *testing.T) {
+	profileRepo := new(mocks.MockProfileRepository)
+	listingRepo := new(mocks.MockListingRepository)
+	svc, _ := setupListingService(profileRepo, listingRepo, newTestRedis())
+
+	// Listing created 25 hours ago (past the 24h cooldown)
+	existing := testListing(testListingID, testSellerID)
+	existing.CreatedAt = time.Now().Add(-25 * time.Hour)
+	listingRepo.On("GetByID", mock.Anything, testListingID).Return(existing, nil)
+	listingRepo.On("Update", mock.Anything, mock.AnythingOfType("*models.Listing")).Return(nil)
+
+	profile := testProfile(testSellerID) // free user
+	profileRepo.On("GetByID", mock.Anything, testSellerID).Return(profile, nil)
+
+	req := &dto.RefreshListingRequest{}
+	result, err := svc.Refresh(context.Background(), testListingID, testSellerID, req)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	// CreatedAt should be updated to approximately now
+	assert.WithinDuration(t, time.Now(), result.CreatedAt, 5*time.Second)
+	assert.WithinDuration(t, time.Now(), result.UpdatedAt, 5*time.Second)
+	// ExpiresAt should be ~30 days from now
+	assert.WithinDuration(t, time.Now().AddDate(0, 0, 30), result.ExpiresAt, 5*time.Second)
+	listingRepo.AssertExpectations(t)
+	profileRepo.AssertExpectations(t)
+}
+
+func TestListingRefresh_PremiumUser_Success(t *testing.T) {
+	profileRepo := new(mocks.MockProfileRepository)
+	listingRepo := new(mocks.MockListingRepository)
+	svc, _ := setupListingService(profileRepo, listingRepo, newTestRedis())
+
+	// Listing created 7 hours ago (past the 6h premium cooldown)
+	existing := testListing(testListingID, testSellerID)
+	existing.CreatedAt = time.Now().Add(-7 * time.Hour)
+	listingRepo.On("GetByID", mock.Anything, testListingID).Return(existing, nil)
+	listingRepo.On("Update", mock.Anything, mock.AnythingOfType("*models.Listing")).Return(nil)
+
+	profile := testProfile(testSellerID, withPremium)
+	profileRepo.On("GetByID", mock.Anything, testSellerID).Return(profile, nil)
+
+	req := &dto.RefreshListingRequest{}
+	result, err := svc.Refresh(context.Background(), testListingID, testSellerID, req)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.WithinDuration(t, time.Now(), result.CreatedAt, 5*time.Second)
+	listingRepo.AssertExpectations(t)
+	profileRepo.AssertExpectations(t)
+}
+
+func TestListingRefresh_PremiumUser_WithAskingFor(t *testing.T) {
+	profileRepo := new(mocks.MockProfileRepository)
+	listingRepo := new(mocks.MockListingRepository)
+	svc, _ := setupListingService(profileRepo, listingRepo, newTestRedis())
+
+	existing := testListing(testListingID, testSellerID)
+	existing.CreatedAt = time.Now().Add(-7 * time.Hour)
+	listingRepo.On("GetByID", mock.Anything, testListingID).Return(existing, nil)
+	listingRepo.On("Update", mock.Anything, mock.MatchedBy(func(l *models.Listing) bool {
+		return string(l.AskingFor) == `[[{"type":"rune","name":"Ber"}]]`
+	})).Return(nil)
+
+	profile := testProfile(testSellerID, withPremium)
+	profileRepo.On("GetByID", mock.Anything, testSellerID).Return(profile, nil)
+
+	newAskingFor := json.RawMessage(`[[{"type":"rune","name":"Ber"}]]`)
+	req := &dto.RefreshListingRequest{AskingFor: newAskingFor}
+	result, err := svc.Refresh(context.Background(), testListingID, testSellerID, req)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, newAskingFor, result.AskingFor)
+	listingRepo.AssertExpectations(t)
+	profileRepo.AssertExpectations(t)
+}
+
+func TestListingRefresh_NotOwner(t *testing.T) {
+	profileRepo := new(mocks.MockProfileRepository)
+	listingRepo := new(mocks.MockListingRepository)
+	svc, _ := setupListingService(profileRepo, listingRepo, newTestRedis())
+
+	existing := testListing(testListingID, testSellerID)
+	listingRepo.On("GetByID", mock.Anything, testListingID).Return(existing, nil)
+
+	req := &dto.RefreshListingRequest{}
+	result, err := svc.Refresh(context.Background(), testListingID, "other-user-id", req)
+
+	assert.ErrorIs(t, err, ErrForbidden)
+	assert.Nil(t, result)
+	listingRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+}
+
+func TestListingRefresh_InactiveListing(t *testing.T) {
+	profileRepo := new(mocks.MockProfileRepository)
+	listingRepo := new(mocks.MockListingRepository)
+	svc, _ := setupListingService(profileRepo, listingRepo, newTestRedis())
+
+	existing := testListing(testListingID, testSellerID, withListingStatus("cancelled"))
+	listingRepo.On("GetByID", mock.Anything, testListingID).Return(existing, nil)
+
+	req := &dto.RefreshListingRequest{}
+	result, err := svc.Refresh(context.Background(), testListingID, testSellerID, req)
+
+	assert.ErrorIs(t, err, ErrInvalidState)
+	assert.Nil(t, result)
+	listingRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+}
+
+func TestListingRefresh_FreeUser_CooldownNotElapsed(t *testing.T) {
+	profileRepo := new(mocks.MockProfileRepository)
+	listingRepo := new(mocks.MockListingRepository)
+	svc, _ := setupListingService(profileRepo, listingRepo, newTestRedis())
+
+	// Listing created 12 hours ago (within 24h free cooldown)
+	existing := testListing(testListingID, testSellerID)
+	existing.CreatedAt = time.Now().Add(-12 * time.Hour)
+	listingRepo.On("GetByID", mock.Anything, testListingID).Return(existing, nil)
+
+	profile := testProfile(testSellerID) // free user
+	profileRepo.On("GetByID", mock.Anything, testSellerID).Return(profile, nil)
+
+	req := &dto.RefreshListingRequest{}
+	result, err := svc.Refresh(context.Background(), testListingID, testSellerID, req)
+
+	assert.ErrorIs(t, err, ErrRefreshCooldown)
+	assert.Nil(t, result)
+	listingRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+}
+
+func TestListingRefresh_PremiumUser_CooldownNotElapsed(t *testing.T) {
+	profileRepo := new(mocks.MockProfileRepository)
+	listingRepo := new(mocks.MockListingRepository)
+	svc, _ := setupListingService(profileRepo, listingRepo, newTestRedis())
+
+	// Listing created 3 hours ago (within 6h premium cooldown)
+	existing := testListing(testListingID, testSellerID)
+	existing.CreatedAt = time.Now().Add(-3 * time.Hour)
+	listingRepo.On("GetByID", mock.Anything, testListingID).Return(existing, nil)
+
+	profile := testProfile(testSellerID, withPremium)
+	profileRepo.On("GetByID", mock.Anything, testSellerID).Return(profile, nil)
+
+	req := &dto.RefreshListingRequest{}
+	result, err := svc.Refresh(context.Background(), testListingID, testSellerID, req)
+
+	assert.ErrorIs(t, err, ErrRefreshCooldown)
+	assert.Nil(t, result)
+	listingRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+}
+
+func TestListingRefresh_FreeUser_AskingForRejected(t *testing.T) {
+	profileRepo := new(mocks.MockProfileRepository)
+	listingRepo := new(mocks.MockListingRepository)
+	svc, _ := setupListingService(profileRepo, listingRepo, newTestRedis())
+
+	existing := testListing(testListingID, testSellerID)
+	existing.CreatedAt = time.Now().Add(-25 * time.Hour)
+	listingRepo.On("GetByID", mock.Anything, testListingID).Return(existing, nil)
+
+	profile := testProfile(testSellerID) // free user
+	profileRepo.On("GetByID", mock.Anything, testSellerID).Return(profile, nil)
+
+	req := &dto.RefreshListingRequest{
+		AskingFor: json.RawMessage(`[[{"type":"rune","name":"Ber"}]]`),
+	}
+	result, err := svc.Refresh(context.Background(), testListingID, testSellerID, req)
+
+	assert.ErrorIs(t, err, ErrPremiumRequired)
+	assert.Nil(t, result)
+	listingRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
 }
 
 // ---------------------------------------------------------------------------

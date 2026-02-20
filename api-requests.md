@@ -571,6 +571,56 @@ Authorization: Bearer <token>
 
 ---
 
+### POST /api/v1/listings/:id/refresh
+
+Refresh (bump) a listing to the top of search results by resetting its creation date. Resets the 30-day expiration timer. Free users can refresh once every 24 hours; premium users every 6 hours. Premium users can also update the asking price during refresh.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Path Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | uuid | Listing ID |
+
+**Request Body (optional, premium only):**
+```json
+{
+  "askingFor": [
+    [{"type": "rune", "name": "Ber"}],
+    [{"type": "rune", "name": "Jah"}]
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| askingFor | json | 2D array of requested items with OR conditions (premium only) |
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "sellerId": "uuid",
+  "name": "Harlequin Crest",
+  "createdAt": "2026-02-20T12:00:00Z",
+  ...
+}
+```
+
+**Error Responses:**
+- `400` - Invalid request body
+- `403` - Forbidden (not owner)
+- `403` - Premium required (non-premium user tried to update asking price)
+- `404` - Listing not found
+- `409` - Only active listings can be refreshed
+- `429` - Refresh cooldown not elapsed (free: 24h, premium: 6h)
+
+---
+
 ### GET /api/v1/my/listings
 
 Get the current user's listings.

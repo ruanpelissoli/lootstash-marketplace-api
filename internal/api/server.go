@@ -317,6 +317,7 @@ func (s *Server) setupRoutes() {
 	authenticated.Post("/listings", listingHandler.Create)
 	authenticated.Patch("/listings/:id", listingHandler.Update)
 	authenticated.Delete("/listings/:id", listingHandler.Delete)
+	authenticated.Post("/listings/:id/refresh", listingHandler.Refresh)
 
 	// Service management
 	authenticated.Post("/services", serviceHandler.Create)

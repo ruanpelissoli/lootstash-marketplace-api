@@ -25,6 +25,8 @@ const (
 	filterResultCacheTTL   = 20 * time.Second
 	maxRecentListings      = 20
 	FreeListingLimit       = 10
+	FreeRefreshCooldown    = 24 * time.Hour
+	PremiumRefreshCooldown = 6 * time.Hour
 )
 
 // ListingService handles listing business logic
@@ -271,6 +273,71 @@ func (s *ListingService) Update(ctx context.Context, id string, userID string, r
 	_ = s.invalidator.InvalidateListing(ctx, id)
 	_ = s.invalidator.InvalidateListingDTO(ctx, id)
 	_ = s.invalidator.InvalidateFilterResults(ctx)
+
+	return listing, nil
+}
+
+// Refresh bumps a listing to the top by resetting created_at to now
+func (s *ListingService) Refresh(ctx context.Context, id string, userID string, req *dto.RefreshListingRequest) (*models.Listing, error) {
+	listing, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify ownership
+	if listing.SellerID != userID {
+		return nil, ErrForbidden
+	}
+
+	// Only active listings can be refreshed
+	if listing.Status != "active" {
+		return nil, ErrInvalidState
+	}
+
+	// Get profile for premium check
+	profile, err := s.profileService.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only premium users can update asking price during refresh
+	if req != nil && req.AskingFor != nil && !profile.IsPremium {
+		return nil, ErrPremiumRequired
+	}
+
+	// Check cooldown
+	cooldown := FreeRefreshCooldown
+	if profile.IsPremium {
+		cooldown = PremiumRefreshCooldown
+	}
+	if time.Since(listing.CreatedAt) < cooldown {
+		return nil, ErrRefreshCooldown
+	}
+
+	// Apply refresh
+	now := time.Now()
+	listing.CreatedAt = now
+	listing.UpdatedAt = now
+	listing.ExpiresAt = now.AddDate(0, 0, 30)
+
+	// Premium users can update asking price
+	if req != nil && req.AskingFor != nil && profile.IsPremium {
+		listing.AskingFor = req.AskingFor
+	}
+
+	if err := s.repo.Update(ctx, listing); err != nil {
+		return nil, err
+	}
+
+	// Invalidate caches
+	_ = s.invalidator.InvalidateListing(ctx, id)
+	_ = s.invalidator.InvalidateListingDTO(ctx, id)
+	_ = s.invalidator.InvalidateFilterResults(ctx)
+
+	// Update recent listings cache
+	s.removeFromRecentListings(ctx, listing.ID)
+	listing.Seller = profile
+	s.pushToRecentListings(ctx, listing)
 
 	return listing, nil
 }

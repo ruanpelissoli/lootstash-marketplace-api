@@ -309,6 +309,74 @@ func (h *ListingHandler) Delete(c *fiber.Ctx) error {
 	return c.JSON(dto.SuccessResponse{Success: true, Message: "Listing cancelled"})
 }
 
+// Refresh handles POST /api/v1/listings/:id/refresh
+func (h *ListingHandler) Refresh(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	id := c.Params("id")
+
+	var req dto.RefreshListingRequest
+	if len(c.Body()) > 0 {
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+				Error:   "bad_request",
+				Message: "Invalid request body",
+				Code:    400,
+			})
+		}
+	}
+
+	listing, err := h.service.Refresh(c.Context(), id, userID, &req)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.Status(fiber.StatusNotFound).JSON(dto.ErrorResponse{
+				Error:   "not_found",
+				Message: "Listing not found",
+				Code:    404,
+			})
+		}
+		if errors.Is(err, service.ErrForbidden) {
+			return c.Status(fiber.StatusForbidden).JSON(dto.ErrorResponse{
+				Error:   "forbidden",
+				Message: "You can only refresh your own listings",
+				Code:    403,
+			})
+		}
+		if errors.Is(err, service.ErrInvalidState) {
+			return c.Status(fiber.StatusConflict).JSON(dto.ErrorResponse{
+				Error:   "invalid_state",
+				Message: "Only active listings can be refreshed",
+				Code:    409,
+			})
+		}
+		if errors.Is(err, service.ErrRefreshCooldown) {
+			return c.Status(fiber.StatusTooManyRequests).JSON(dto.ErrorResponse{
+				Error:   "refresh_cooldown",
+				Message: "Listing refresh is on cooldown. Free users: 24 hours. Premium users: 6 hours.",
+				Code:    429,
+			})
+		}
+		if errors.Is(err, service.ErrPremiumRequired) {
+			return c.Status(fiber.StatusForbidden).JSON(dto.ErrorResponse{
+				Error:   "premium_required",
+				Message: "Only premium users can update asking price during refresh",
+				Code:    403,
+			})
+		}
+		logger.FromContext(c.UserContext()).Error("failed to refresh listing",
+			"error", err.Error(),
+			"listing_id", id,
+			"user_id", userID,
+		)
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "internal_error",
+			Message: "Failed to refresh listing",
+			Code:    500,
+		})
+	}
+
+	return c.JSON(h.service.ToCardResponse(listing))
+}
+
 // ListMy handles GET /api/v1/my/listings
 func (h *ListingHandler) ListMy(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)

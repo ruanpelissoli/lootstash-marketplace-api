@@ -105,6 +105,11 @@ type UpdateListingRequest struct {
 	Status      *string         `json:"status,omitempty" validate:"omitempty,oneof=active cancelled"`
 }
 
+// RefreshListingRequest represents a request to refresh (bump) a listing
+type RefreshListingRequest struct {
+	AskingFor json.RawMessage `json:"askingFor,omitempty"`
+}
+
 // ListingFilterRequest represents listing filter parameters
 type ListingFilterRequest struct {
 	SellerID         string `query:"sellerId"`
