@@ -92,6 +92,12 @@ Authorization: Bearer <token>
   "profileFlair": "gold",
   "usernameColor": "#FF5733",
   "createdAt": "2024-01-01T00:00:00Z",
+  "battleNetLinked": true,
+  "battleNetLinkedAt": "2024-01-01T00:00:00Z",
+  "preferredLadder": true,
+  "preferredHardcore": false,
+  "preferredPlatforms": ["pc"],
+  "preferredRegion": "americas",
   "updatedAt": "2024-01-01T00:00:00Z"
 }
 ```
@@ -116,9 +122,22 @@ Content-Type: application/json
 ```json
 {
   "displayName": "string (optional, 1-50 chars)",
-  "avatarUrl": "string (optional, valid URL)"
+  "avatarUrl": "string (optional, valid URL)",
+  "timezone": "string (optional, max 100 chars)",
+  "preferredLadder": "boolean (optional)",
+  "preferredHardcore": "boolean (optional)",
+  "preferredPlatforms": ["pc", "xbox"] ,
+  "preferredRegion": "americas (optional: americas|europe|asia)"
 }
 ```
+
+**Game Preference Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| preferredLadder | boolean/null | Default ladder mode preference |
+| preferredHardcore | boolean/null | Default hardcore mode preference |
+| preferredPlatforms | string[] | Default platform preferences (pc, xbox, playstation, switch) |
+| preferredRegion | string/null | Default region preference (americas, europe, asia) |
 
 **Response:**
 ```json
@@ -135,6 +154,11 @@ Content-Type: application/json
   "profileFlair": "gold",
   "usernameColor": "#FF5733",
   "createdAt": "2024-01-01T00:00:00Z",
+  "battleNetLinked": true,
+  "preferredLadder": true,
+  "preferredHardcore": false,
+  "preferredPlatforms": ["pc"],
+  "preferredRegion": "americas",
   "updatedAt": "2024-01-01T00:00:00Z"
 }
 ```
@@ -1844,7 +1868,7 @@ Authorization: Bearer <token>
       "game": "diablo2",
       "ladder": true,
       "hardcore": null,
-      "platform": null,
+      "platforms": [],
       "region": null,
       "status": "active",
       "createdAt": "2024-01-01T00:00:00Z",
@@ -1887,7 +1911,7 @@ Content-Type: application/json
   "game": "diablo2 (required)",
   "ladder": true,
   "hardcore": false,
-  "platform": "pc (optional)",
+  "platforms": ["pc", "xbox"],
   "region": "americas (optional)"
 }
 ```
@@ -1905,7 +1929,7 @@ Content-Type: application/json
 |-------|------|-------------|
 | ladder | boolean/null | Match specific ladder mode, or any if null |
 | hardcore | boolean/null | Match specific hardcore mode, or any if null |
-| platform | string/null | Match specific platform, or any if null |
+| platforms | string[]/null | Match any of the specified platforms (array overlap), or any if null/empty. Values: pc, xbox, playstation, switch |
 | region | string/null | Match specific region, or any if null |
 | category | string/null | Match specific category, or any if null |
 | rarity | string/null | Match specific rarity, or any if null |
@@ -1925,7 +1949,7 @@ Content-Type: application/json
   "game": "diablo2",
   "ladder": true,
   "hardcore": false,
-  "platform": "pc",
+  "platforms": ["pc", "xbox"],
   "region": "americas",
   "status": "active",
   "createdAt": "2024-01-01T00:00:00Z",
@@ -1967,7 +1991,7 @@ Content-Type: application/json
   "game": "diablo2",
   "ladder": null,
   "hardcore": null,
-  "platform": null,
+  "platforms": [],
   "region": null,
   "status": "paused"
 }

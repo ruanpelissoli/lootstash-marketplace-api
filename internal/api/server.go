@@ -248,17 +248,17 @@ func (s *Server) setupRoutes() {
 	api := s.app.Group("/api")
 	apiV1 := api.Group("/v1")
 
-	// Public routes
+	// Public routes (with Cache-Control headers)
 	apiV1.Post("/listings/search", authOptional, listingHandler.Search)
-	apiV1.Get("/listings", authOptional, listingHandler.List)
-	apiV1.Get("/listings/:id", authOptional, listingHandler.GetByID)
-	apiV1.Get("/profiles/:id", profileHandler.GetByID)
-	apiV1.Get("/profiles/:id/ratings", ratingHandler.GetByProfileID)
-	apiV1.Get("/profiles/:id/sales", profileHandler.GetSales)
-	apiV1.Get("/decline-reasons", offerHandler.GetDeclineReasons)
-	apiV1.Get("/marketplace/stats", statsHandler.GetMarketplaceStats)
-	apiV1.Get("/marketplace/recent", statsHandler.GetRecentListings)
-	apiV1.Get("/marketplace/recent-services", statsHandler.GetRecentServices)
+	apiV1.Get("/listings", middleware.CacheControl(15), authOptional, listingHandler.List)
+	apiV1.Get("/listings/:id", middleware.CacheControl(300), authOptional, listingHandler.GetByID)
+	apiV1.Get("/profiles/:id", middleware.CacheControl(60), profileHandler.GetByID)
+	apiV1.Get("/profiles/:id/ratings", middleware.CacheControl(60), ratingHandler.GetByProfileID)
+	apiV1.Get("/profiles/:id/sales", middleware.CacheControl(60), profileHandler.GetSales)
+	apiV1.Get("/decline-reasons", middleware.CacheControl(3600), offerHandler.GetDeclineReasons)
+	apiV1.Get("/marketplace/stats", middleware.CacheControl(300), statsHandler.GetMarketplaceStats)
+	apiV1.Get("/marketplace/recent", middleware.CacheControl(15), statsHandler.GetRecentListings)
+	apiV1.Get("/marketplace/recent-services", middleware.CacheControl(15), statsHandler.GetRecentServices)
 
 	// Stripe webhook (no auth required)
 	apiV1.Post("/webhooks/stripe", webhookHandler.StripeWebhook)
@@ -269,7 +269,7 @@ func (s *Server) setupRoutes() {
 	apiV1.Get("/services/providers/:id", authOptional, serviceHandler.GetProviderDetail)
 
 	// Game routes
-	apiV1.Get("/games/:game/categories", func(c *fiber.Ctx) error {
+	apiV1.Get("/games/:game/categories", middleware.CacheControl(3600), func(c *fiber.Ctx) error {
 		gameCode := c.Params("game")
 		categories, err := registry.GetCategories(gameCode)
 		if err != nil {
@@ -281,7 +281,7 @@ func (s *Server) setupRoutes() {
 		}
 		return c.JSON(categories)
 	})
-	apiV1.Get("/games/:game/service-types", func(c *fiber.Ctx) error {
+	apiV1.Get("/games/:game/service-types", middleware.CacheControl(3600), func(c *fiber.Ctx) error {
 		gameCode := c.Params("game")
 		serviceTypes, err := registry.GetServiceTypes(gameCode)
 		if err != nil {

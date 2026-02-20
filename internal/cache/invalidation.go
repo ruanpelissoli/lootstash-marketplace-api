@@ -94,3 +94,11 @@ func (i *Invalidator) InvalidateServiceProviders(ctx context.Context, game strin
 	}
 	return i.redis.Del(ctx, ServiceProvidersKey(game))
 }
+
+// InvalidateFilterResults removes all cached filter result entries
+func (i *Invalidator) InvalidateFilterResults(ctx context.Context) error {
+	if i == nil || i.redis == nil {
+		return nil
+	}
+	return i.redis.DeleteByPattern(ctx, FilterResultsPattern())
+}

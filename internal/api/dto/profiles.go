@@ -23,16 +23,24 @@ type ProfileResponse struct {
 // MyProfileResponse represents the current user's profile with additional fields
 type MyProfileResponse struct {
 	ProfileResponse
-	BattleNetLinked   bool       `json:"battleNetLinked"`
-	BattleNetLinkedAt *time.Time `json:"battleNetLinkedAt,omitempty"`
-	UpdatedAt         time.Time  `json:"updatedAt"`
+	BattleNetLinked    bool       `json:"battleNetLinked"`
+	BattleNetLinkedAt  *time.Time `json:"battleNetLinkedAt,omitempty"`
+	PreferredLadder    *bool      `json:"preferredLadder,omitempty"`
+	PreferredHardcore  *bool      `json:"preferredHardcore,omitempty"`
+	PreferredPlatforms []string   `json:"preferredPlatforms,omitempty"`
+	PreferredRegion    string     `json:"preferredRegion,omitempty"`
+	UpdatedAt          time.Time  `json:"updatedAt"`
 }
 
 // UpdateProfileRequest represents a profile update request
 type UpdateProfileRequest struct {
-	DisplayName *string `json:"displayName" validate:"omitempty,min=1,max=50"`
-	AvatarURL   *string `json:"avatarUrl" validate:"omitempty,url"`
-	Timezone    *string `json:"timezone" validate:"omitempty,max=100"`
+	DisplayName        *string  `json:"displayName" validate:"omitempty,min=1,max=50"`
+	AvatarURL          *string  `json:"avatarUrl" validate:"omitempty,url"`
+	Timezone           *string  `json:"timezone" validate:"omitempty,max=100"`
+	PreferredLadder    *bool    `json:"preferredLadder"`
+	PreferredHardcore  *bool    `json:"preferredHardcore"`
+	PreferredPlatforms []string `json:"preferredPlatforms" validate:"omitempty,dive,oneof=pc xbox playstation switch"`
+	PreferredRegion    *string  `json:"preferredRegion" validate:"omitempty,oneof=americas europe asia"`
 }
 
 // UploadPictureResponse represents the response after uploading a profile picture

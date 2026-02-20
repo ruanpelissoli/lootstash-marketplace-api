@@ -18,6 +18,7 @@ const (
 	prefixService            = "service"
 	prefixServiceDTO         = "service:dto"
 	prefixServiceProviders   = "service:providers"
+	prefixFilterResults      = "filter:results"
 )
 
 // Profile cache keys
@@ -104,4 +105,14 @@ func ServiceDTOKey(id string) string {
 // ServiceProvidersKey returns the service providers cache key for a game
 func ServiceProvidersKey(game string) string {
 	return fmt.Sprintf("%s:%s", prefixServiceProviders, game)
+}
+
+// FilterResultsKey returns the cache key for a filter result hash
+func FilterResultsKey(hash string) string {
+	return fmt.Sprintf("%s:%s", prefixFilterResults, hash)
+}
+
+// FilterResultsPattern returns the pattern for all filter result keys
+func FilterResultsPattern() string {
+	return fmt.Sprintf("%s:*", prefixFilterResults)
 }

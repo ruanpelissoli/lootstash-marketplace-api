@@ -13,8 +13,7 @@ type CreateWishlistItemRequest struct {
 	Ladder       *bool               `json:"ladder,omitempty"`
 	Hardcore     *bool               `json:"hardcore,omitempty"`
 	IsNonRotw    *bool               `json:"isNonRotw,omitempty"`
-	Platform     *string             `json:"platform,omitempty" validate:"omitempty,max=20"`
-	Region       *string             `json:"region,omitempty" validate:"omitempty,max=20"`
+	Platforms    []string            `json:"platforms,omitempty" validate:"omitempty,dive,oneof=pc xbox playstation switch"`
 }
 
 // UpdateWishlistItemRequest represents a request to update a wishlist item
@@ -28,8 +27,7 @@ type UpdateWishlistItemRequest struct {
 	Ladder       *bool               `json:"ladder,omitempty"`
 	Hardcore     *bool               `json:"hardcore,omitempty"`
 	IsNonRotw    *bool               `json:"isNonRotw,omitempty"`
-	Platform     *string             `json:"platform,omitempty" validate:"omitempty,max=20"`
-	Region       *string             `json:"region,omitempty" validate:"omitempty,max=20"`
+	Platforms    []string            `json:"platforms,omitempty" validate:"omitempty,dive,oneof=pc xbox playstation switch"`
 	Status       *string             `json:"status,omitempty" validate:"omitempty,oneof=active paused"`
 }
 
@@ -54,8 +52,7 @@ type WishlistItemResponse struct {
 	Ladder       *bool              `json:"ladder,omitempty"`
 	Hardcore     *bool              `json:"hardcore,omitempty"`
 	IsNonRotw    *bool              `json:"isNonRotw,omitempty"`
-	Platform     *string            `json:"platform,omitempty"`
-	Region       *string            `json:"region,omitempty"`
+	Platforms    []string           `json:"platforms,omitempty"`
 	Status       string             `json:"status"`
 	CreatedAt    time.Time          `json:"createdAt"`
 	UpdatedAt    time.Time          `json:"updatedAt"`

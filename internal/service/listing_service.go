@@ -20,10 +20,11 @@ import (
 )
 
 const (
-	listingCacheTTL    = 15 * time.Minute
-	listingDTOCacheTTL = 1 * time.Hour
-	maxRecentListings  = 20
-	FreeListingLimit   = 10
+	listingCacheTTL        = 15 * time.Minute
+	listingDTOCacheTTL     = 1 * time.Hour
+	filterResultCacheTTL   = 20 * time.Second
+	maxRecentListings      = 20
+	FreeListingLimit       = 10
 )
 
 // ListingService handles listing business logic
@@ -155,6 +156,9 @@ func (s *ListingService) Create(ctx context.Context, sellerID string, req *dto.C
 		return nil, err
 	}
 
+	// Invalidate filter result cache
+	_ = s.invalidator.InvalidateFilterResults(ctx)
+
 	log.Info("listing created successfully",
 		"listing_id", listing.ID,
 		"seller_id", sellerID,
@@ -266,6 +270,7 @@ func (s *ListingService) Update(ctx context.Context, id string, userID string, r
 	// Invalidate cache
 	_ = s.invalidator.InvalidateListing(ctx, id)
 	_ = s.invalidator.InvalidateListingDTO(ctx, id)
+	_ = s.invalidator.InvalidateFilterResults(ctx)
 
 	return listing, nil
 }
@@ -291,6 +296,7 @@ func (s *ListingService) Delete(ctx context.Context, id string, userID string) e
 	// Invalidate cache
 	_ = s.invalidator.InvalidateListing(ctx, id)
 	_ = s.invalidator.InvalidateListingDTO(ctx, id)
+	_ = s.invalidator.InvalidateFilterResults(ctx)
 
 	// Remove from recent cache
 	s.removeFromRecentListings(ctx, listing.ID)
@@ -354,12 +360,65 @@ func (s *ListingService) List(ctx context.Context, req *dto.ListingFilterRequest
 		Limit:           req.GetLimit(),
 	}
 
-	return s.repo.List(ctx, filter)
+	return s.listWithCache(ctx, filter)
 }
 
 // ListByFilter retrieves listings using a pre-built filter
 func (s *ListingService) ListByFilter(ctx context.Context, filter repository.ListingFilter) ([]*models.Listing, int, error) {
-	return s.repo.List(ctx, filter)
+	return s.listWithCache(ctx, filter)
+}
+
+// filterCacheResult wraps listings and count for cache serialization
+type filterCacheResult struct {
+	Listings []*models.Listing `json:"listings"`
+	Count    int               `json:"count"`
+}
+
+// listWithCache wraps repo.List with Redis caching (20s TTL)
+func (s *ListingService) listWithCache(ctx context.Context, filter repository.ListingFilter) ([]*models.Listing, int, error) {
+	// Build cache key from filter params
+	params := map[string]interface{}{
+		"seller":    filter.SellerID,
+		"q":         filter.Query,
+		"catalog":   filter.CatalogItemID,
+		"game":      filter.Game,
+		"ladder":    filter.Ladder,
+		"hardcore":  filter.Hardcore,
+		"nonrotw":   filter.IsNonRotw,
+		"platforms": filter.Platforms,
+		"region":    filter.Region,
+		"cats":      filter.Categories,
+		"rarity":    filter.Rarity,
+		"affixes":   filter.AffixFilters,
+		"askFor":    filter.AskingForFilter,
+		"sortBy":    filter.SortBy,
+		"sortOrd":   filter.SortOrder,
+		"offset":    filter.Offset,
+		"limit":     filter.Limit,
+	}
+	cacheKey := cache.FilterResultsKey(cache.HashFilter(params))
+
+	// Try cache first
+	if cached, err := s.redis.Get(ctx, cacheKey); err == nil && cached != "" {
+		var result filterCacheResult
+		if json.Unmarshal([]byte(cached), &result) == nil {
+			return result.Listings, result.Count, nil
+		}
+	}
+
+	// Cache miss — query database
+	listings, count, err := s.repo.List(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Cache the result
+	result := filterCacheResult{Listings: listings, Count: count}
+	if data, marshalErr := json.Marshal(result); marshalErr == nil {
+		_ = s.redis.Set(ctx, cacheKey, string(data), filterResultCacheTTL)
+	}
+
+	return listings, count, nil
 }
 
 // ListBySellerID retrieves listings for a specific seller

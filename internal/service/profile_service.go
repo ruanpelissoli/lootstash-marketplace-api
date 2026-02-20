@@ -123,6 +123,18 @@ func (s *ProfileService) Update(ctx context.Context, userID string, req *dto.Upd
 	if req.Timezone != nil {
 		profile.Timezone = req.Timezone
 	}
+	if req.PreferredLadder != nil {
+		profile.PreferredLadder = req.PreferredLadder
+	}
+	if req.PreferredHardcore != nil {
+		profile.PreferredHardcore = req.PreferredHardcore
+	}
+	if req.PreferredPlatforms != nil {
+		profile.PreferredPlatforms = req.PreferredPlatforms
+	}
+	if req.PreferredRegion != nil {
+		profile.PreferredRegion = req.PreferredRegion
+	}
 
 	if err := s.repo.Update(ctx, profile); err != nil {
 		return nil, err
@@ -161,10 +173,14 @@ func (s *ProfileService) ToResponse(profile *models.Profile) *dto.ProfileRespons
 // ToMyProfileResponse converts a profile model to a my profile DTO response
 func (s *ProfileService) ToMyProfileResponse(profile *models.Profile) *dto.MyProfileResponse {
 	return &dto.MyProfileResponse{
-		ProfileResponse:   *s.ToResponse(profile),
-		BattleNetLinked:   profile.IsBattleNetLinked(),
-		BattleNetLinkedAt: profile.BattleNetLinkedAt,
-		UpdatedAt:         profile.UpdatedAt,
+		ProfileResponse:    *s.ToResponse(profile),
+		BattleNetLinked:    profile.IsBattleNetLinked(),
+		BattleNetLinkedAt:  profile.BattleNetLinkedAt,
+		PreferredLadder:    profile.PreferredLadder,
+		PreferredHardcore:  profile.PreferredHardcore,
+		PreferredPlatforms: profile.PreferredPlatforms,
+		PreferredRegion:    profile.GetPreferredRegion(),
+		UpdatedAt:          profile.UpdatedAt,
 	}
 }
 

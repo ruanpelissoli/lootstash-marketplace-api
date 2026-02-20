@@ -153,12 +153,21 @@ Two listing response types:
 Redis cache with key patterns:
 - `profile:{id}` — 1 hour TTL
 - `listing:{id}` — 15 min TTL
+- `filter:results:{hash}` — 20s TTL (listing filter query results, keyed by SHA-256 of filter params)
 - `notification:count:{userId}`
 - `decline:reasons`
 - `ratelimit:{ip}:{endpoint}`
 - `marketplace:stats`
 
-Cache invalidation via `cache.Invalidator` on entity updates.
+Cache invalidation via `cache.Invalidator` on entity updates. Filter result cache is invalidated on listing create/update/delete (belt-and-suspenders with 20s TTL).
+
+### Cache-Control Headers
+
+Public GET endpoints set `Cache-Control: public, max-age=N, s-maxage=N` via middleware (`internal/api/middleware/cache_control.go`):
+- Listings list, recent: 15s
+- Profiles: 60s
+- Listing detail, marketplace stats: 300s
+- Game categories, decline reasons, service types: 3600s
 
 ## Authentication
 
@@ -176,8 +185,9 @@ All tables in `d2` schema with RLS enabled.
 
 | Table | Key Fields |
 |-------|-----------|
-| `profiles` | username, display_name, avatar, is_premium, profile_flair, stripe_*, battle_net_*, total_trades, average_rating |
+| `profiles` | username, display_name, avatar, is_premium, profile_flair, stripe_*, battle_net_*, total_trades, average_rating, preferred_ladder, preferred_hardcore, preferred_platforms (TEXT[]), preferred_region |
 | `listings` | seller_id, name, item_type, rarity, category, stats (JSONB), suffixes, runes, asking_for (JSONB), asking_price, game, ladder, hardcore, platform, region, status, views, expires_at |
+| `listing_stats` | listing_id, stat_code, stat_value (normalized from listings.stats via DB trigger — used for affix filtering) |
 | `offers` | listing_id, requester_id, offered_items (JSONB), status, decline_reason_id |
 | `trades` | offer_id, listing_id, seller_id, buyer_id, status, cancel_reason |
 | `chats` | trade_id (unique) |
@@ -185,7 +195,7 @@ All tables in `d2` schema with RLS enabled.
 | `transactions` | trade_id, item_name, item_details (JSONB), offered_items (JSONB) |
 | `ratings` | transaction_id (unique), rater_id, rated_id, stars (1-5), comment |
 | `notifications` | user_id, type (enum), title, metadata (JSONB), reference_type, reference_id, read |
-| `wishlist_items` | user_id, name, category, rarity, stat_criteria (JSONB), game filters |
+| `wishlist_items` | user_id, name, category, rarity, stat_criteria (JSONB), game, ladder, hardcore, platforms (TEXT[]), region, status |
 | `billing_events` | user_id, stripe_event_id (unique), event_type, amount_cents, currency |
 | `decline_reasons` | code (unique), message, active |
 | `marketplace_stats` | active_listings, trades_today, avg_response_time_minutes |
@@ -238,7 +248,7 @@ helms, body armor, weapons, shields, gloves, boots, belts, amulets, rings, charm
 
 ## Key Patterns
 
-- **Affix filtering**: Marketplace supports JSONB queries on listing stats with code/minValue/maxValue
+- **Affix filtering**: Standard stat filters query the normalized `d2.listing_stats` table (synced by DB trigger). Skill tab filters (`skilltab` with `param`) still use JSONB `jsonb_array_elements` since `listing_stats` has no `param` column
 - **Wishlist matching**: New listings trigger async matching against user wishlists → notifications
 - **Premium gating**: Free users limited to 10 active listings. Premium unlocks unlimited listings, wishlist, profile flair, price history
 - **Notification system**: Polymorphic references (`reference_type` + `reference_id`) to link any entity
@@ -263,3 +273,5 @@ fly launch --no-deploy  # First time setup
 fly deploy              # Deploy
 fly secrets set DATABASE_URL=xxx REDIS_URL=xxx STRIPE_SECRET_KEY=xxx  # Set secrets
 ```
+
+Scaling config (`fly.toml`): `min_machines_running=1` (eliminates cold starts), concurrency limits at 150 soft / 200 hard requests.

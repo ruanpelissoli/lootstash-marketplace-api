@@ -21,8 +21,7 @@ type WishlistItem struct {
 	Ladder       *bool           `bun:"ladder"`
 	Hardcore     *bool           `bun:"hardcore"`
 	IsNonRotw    *bool           `bun:"is_non_rotw"`
-	Platform     *string         `bun:"platform"`
-	Region       *string         `bun:"region"`
+	Platforms    []string        `bun:"platforms,array"`
 	Status       string          `bun:"status,default:'active'"`
 	CreatedAt    time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt    time.Time       `bun:"updated_at,nullzero,notnull,default:current_timestamp"`

@@ -86,8 +86,7 @@ func (s *WishlistService) Create(ctx context.Context, userID string, req *dto.Cr
 		Ladder:       req.Ladder,
 		Hardcore:     req.Hardcore,
 		IsNonRotw:    req.IsNonRotw,
-		Platform:     req.Platform,
-		Region:       req.Region,
+		Platforms:    req.Platforms,
 		Status:       "active",
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
@@ -163,11 +162,8 @@ func (s *WishlistService) Update(ctx context.Context, id string, userID string, 
 	if req.IsNonRotw != nil {
 		item.IsNonRotw = req.IsNonRotw
 	}
-	if req.Platform != nil {
-		item.Platform = req.Platform
-	}
-	if req.Region != nil {
-		item.Region = req.Region
+	if req.Platforms != nil {
+		item.Platforms = req.Platforms
 	}
 	if req.Status != nil {
 		item.Status = *req.Status
@@ -449,8 +445,7 @@ func (s *WishlistService) ToResponse(item *models.WishlistItem) *dto.WishlistIte
 		Ladder:       item.Ladder,
 		Hardcore:     item.Hardcore,
 		IsNonRotw:    item.IsNonRotw,
-		Platform:     item.Platform,
-		Region:       item.Region,
+		Platforms:    item.Platforms,
 		Status:       item.Status,
 		CreatedAt:    item.CreatedAt,
 		UpdatedAt:    item.UpdatedAt,

@@ -263,34 +263,23 @@ func (r *listingRepository) applyAffixFilter(query *bun.SelectQuery, af AffixFil
 		return query
 	}
 
-	// Expand code to all aliases (canonical + game codes)
-	// This allows filtering to match listings regardless of which code system was used
+	// Standard stat filters: use the normalized listing_stats table for better performance
 	codes := d2.ExpandStatCode(af.Code)
 
-	if af.MinValue != nil && af.MaxValue != nil {
-		query = query.Where(
-			"EXISTS (SELECT 1 FROM jsonb_array_elements(l.stats) elem WHERE elem->>'code' IN (?) AND (elem->>'value')::int >= ? AND (elem->>'value')::int <= ?)",
-			bun.In(codes), *af.MinValue, *af.MaxValue,
-		)
-	} else if af.MinValue != nil {
-		query = query.Where(
-			"EXISTS (SELECT 1 FROM jsonb_array_elements(l.stats) elem WHERE elem->>'code' IN (?) AND (elem->>'value')::int >= ?)",
-			bun.In(codes), *af.MinValue,
-		)
-	} else if af.MaxValue != nil {
-		query = query.Where(
-			"EXISTS (SELECT 1 FROM jsonb_array_elements(l.stats) elem WHERE elem->>'code' IN (?) AND (elem->>'value')::int <= ?)",
-			bun.In(codes), *af.MaxValue,
-		)
-	} else {
-		// Just check if the affix exists
-		query = query.Where(
-			"EXISTS (SELECT 1 FROM jsonb_array_elements(l.stats) elem WHERE elem->>'code' IN (?)",
-			bun.In(codes),
-		)
+	subq := r.db.DB().NewSelect().
+		TableExpr("d2.listing_stats AS ls").
+		ColumnExpr("1").
+		Where("ls.listing_id = l.id").
+		Where("ls.stat_code IN (?)", bun.In(codes))
+
+	if af.MinValue != nil {
+		subq = subq.Where("ls.stat_value >= ?", *af.MinValue)
+	}
+	if af.MaxValue != nil {
+		subq = subq.Where("ls.stat_value <= ?", *af.MaxValue)
 	}
 
-	return query
+	return query.Where("EXISTS (?)", subq)
 }
 
 // applyAskingForFilter adds a WHERE clause that checks if ANY element across

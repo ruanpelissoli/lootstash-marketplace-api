@@ -30,6 +30,10 @@ type Profile struct {
 	ProfileFlair                   *string    `bun:"profile_flair"`
 	UsernameColor                  *string    `bun:"username_color"`
 	Timezone                       *string    `bun:"timezone"`
+	PreferredLadder                *bool      `bun:"preferred_ladder"`
+	PreferredHardcore              *bool      `bun:"preferred_hardcore"`
+	PreferredPlatforms             []string   `bun:"preferred_platforms,array"`
+	PreferredRegion                *string    `bun:"preferred_region"`
 	LastActiveAt                   time.Time  `bun:"last_active_at,nullzero,default:current_timestamp"`
 	CreatedAt                      time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt                      time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
@@ -84,6 +88,14 @@ func (p *Profile) GetUsernameColor() string {
 func (p *Profile) GetTimezone() string {
 	if p.Timezone != nil {
 		return *p.Timezone
+	}
+	return ""
+}
+
+// GetPreferredRegion returns the preferred region or empty string
+func (p *Profile) GetPreferredRegion() string {
+	if p.PreferredRegion != nil {
+		return *p.PreferredRegion
 	}
 	return ""
 }
