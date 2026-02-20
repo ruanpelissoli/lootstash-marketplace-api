@@ -34,6 +34,7 @@ type Profile struct {
 	PreferredHardcore              *bool      `bun:"preferred_hardcore"`
 	PreferredPlatforms             []string   `bun:"preferred_platforms,array"`
 	PreferredRegion                *string    `bun:"preferred_region"`
+	PreferredNonRotw               *bool      `bun:"preferred_non_rotw"`
 	LastActiveAt                   time.Time  `bun:"last_active_at,nullzero,default:current_timestamp"`
 	CreatedAt                      time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt                      time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
