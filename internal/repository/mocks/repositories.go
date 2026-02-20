@@ -288,6 +288,11 @@ func (m *MockServiceRepository) Update(ctx context.Context, service *models.Serv
 	return args.Error(0)
 }
 
+func (m *MockServiceRepository) Delete(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
 func (m *MockServiceRepository) ListByProviderID(ctx context.Context, providerID string, offset, limit int) ([]*models.Service, int, error) {
 	args := m.Called(ctx, providerID, offset, limit)
 	if args.Get(0) == nil {

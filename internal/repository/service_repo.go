@@ -71,12 +71,21 @@ func (r *serviceRepository) Update(ctx context.Context, service *models.Service)
 	return err
 }
 
+func (r *serviceRepository) Delete(ctx context.Context, id string) error {
+	_, err := r.db.DB().NewDelete().
+		Model((*models.Service)(nil)).
+		Where("id = ?", id).
+		Exec(ctx)
+	return err
+}
+
 func (r *serviceRepository) ListByProviderID(ctx context.Context, providerID string, offset, limit int) ([]*models.Service, int, error) {
 	var services []*models.Service
 
 	query := r.db.DB().NewSelect().
 		Model(&services).
-		Where("s.provider_id = ?", providerID)
+		Where("s.provider_id = ?", providerID).
+		Where("s.status != ?", "cancelled")
 
 	count, err := query.Count(ctx)
 	if err != nil {

@@ -130,6 +130,7 @@ type ServiceRepository interface {
 	GetByID(ctx context.Context, id string) (*models.Service, error)
 	GetByIDWithProvider(ctx context.Context, id string) (*models.Service, error)
 	Update(ctx context.Context, service *models.Service) error
+	Delete(ctx context.Context, id string) error
 	ListByProviderID(ctx context.Context, providerID string, offset, limit int) ([]*models.Service, int, error)
 	ListProviders(ctx context.Context, filter ServiceProviderFilter) ([]ProviderWithServices, int, error)
 	GetProviderServices(ctx context.Context, providerID string) ([]*models.Service, error)

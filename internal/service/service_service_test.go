@@ -333,15 +333,13 @@ func TestServiceDelete_Success(t *testing.T) {
 	ctx := context.Background()
 
 	existing := testServiceModel(testServiceID, testProviderID)
-	assert.Equal(t, "active", existing.Status, "precondition: service starts as active")
 
 	serviceRepo.On("GetByID", mock.Anything, testServiceID).Return(existing, nil)
-	serviceRepo.On("Update", mock.Anything, mock.AnythingOfType("*models.Service")).Return(nil)
+	serviceRepo.On("Delete", mock.Anything, testServiceID).Return(nil)
 
 	err := svc.Delete(ctx, testServiceID, testProviderID)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "cancelled", existing.Status, "status should be set to cancelled")
 
 	serviceRepo.AssertExpectations(t)
 }
@@ -360,9 +358,8 @@ func TestServiceDelete_NotOwner(t *testing.T) {
 	err := svc.Delete(ctx, testServiceID, otherUser)
 
 	assert.ErrorIs(t, err, ErrForbidden)
-	assert.Equal(t, "active", existing.Status, "status should remain unchanged")
 
-	serviceRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	serviceRepo.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything)
 	serviceRepo.AssertExpectations(t)
 }
 

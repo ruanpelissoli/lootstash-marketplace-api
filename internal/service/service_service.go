@@ -156,7 +156,7 @@ func (s *ServiceService) Update(ctx context.Context, id string, userID string, r
 	return service, nil
 }
 
-// Delete cancels a service (soft delete)
+// Delete hard-deletes a service
 func (s *ServiceService) Delete(ctx context.Context, id string, userID string) error {
 	service, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -167,9 +167,7 @@ func (s *ServiceService) Delete(ctx context.Context, id string, userID string) e
 		return ErrForbidden
 	}
 
-	service.Status = "cancelled"
-	service.UpdatedAt = time.Now()
-	if err := s.repo.Update(ctx, service); err != nil {
+	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
 

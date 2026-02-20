@@ -276,7 +276,7 @@ func (h *ServiceHandler) Delete(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(dto.SuccessResponse{Success: true, Message: "Service cancelled"})
+	return c.JSON(dto.SuccessResponse{Success: true, Message: "Service deleted"})
 }
 
 // Pause handles POST /api/v1/services/:id/pause
