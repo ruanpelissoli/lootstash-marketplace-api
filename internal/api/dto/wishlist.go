@@ -7,9 +7,10 @@ type CreateWishlistItemRequest struct {
 	Name         string              `json:"name" validate:"required,min=1,max=100"`
 	Category     *string             `json:"category,omitempty" validate:"omitempty,max=50"`
 	Rarity       *string             `json:"rarity,omitempty" validate:"omitempty,max=50"`
-	ImageURL     *string             `json:"imageUrl,omitempty" validate:"omitempty,url,max=500"`
-	StatCriteria []StatCriterionDTO  `json:"statCriteria,omitempty"`
-	Game         string              `json:"game" validate:"required,min=1,max=20"`
+	ImageURL      *string             `json:"imageUrl,omitempty" validate:"omitempty,url,max=500"`
+	CatalogItemID *string             `json:"catalogItemId,omitempty" validate:"omitempty,max=50"`
+	StatCriteria  []StatCriterionDTO  `json:"statCriteria,omitempty"`
+	Game          string              `json:"game" validate:"required,min=1,max=20"`
 	Ladder       *bool               `json:"ladder,omitempty"`
 	Hardcore     *bool               `json:"hardcore,omitempty"`
 	IsNonRotw    *bool               `json:"isNonRotw,omitempty"`
@@ -21,9 +22,10 @@ type UpdateWishlistItemRequest struct {
 	Name         *string             `json:"name,omitempty" validate:"omitempty,min=1,max=100"`
 	Category     *string             `json:"category,omitempty" validate:"omitempty,max=50"`
 	Rarity       *string             `json:"rarity,omitempty" validate:"omitempty,max=50"`
-	ImageURL     *string             `json:"imageUrl,omitempty" validate:"omitempty,url,max=500"`
-	StatCriteria []StatCriterionDTO  `json:"statCriteria,omitempty"`
-	Game         *string             `json:"game,omitempty" validate:"omitempty,min=1,max=20"`
+	ImageURL      *string             `json:"imageUrl,omitempty" validate:"omitempty,url,max=500"`
+	CatalogItemID *string             `json:"catalogItemId,omitempty" validate:"omitempty,max=50"`
+	StatCriteria  []StatCriterionDTO  `json:"statCriteria,omitempty"`
+	Game          *string             `json:"game,omitempty" validate:"omitempty,min=1,max=20"`
 	Ladder       *bool               `json:"ladder,omitempty"`
 	Hardcore     *bool               `json:"hardcore,omitempty"`
 	IsNonRotw    *bool               `json:"isNonRotw,omitempty"`
@@ -46,9 +48,10 @@ type WishlistItemResponse struct {
 	Name         string             `json:"name"`
 	Category     *string            `json:"category,omitempty"`
 	Rarity       *string            `json:"rarity,omitempty"`
-	ImageURL     *string            `json:"imageUrl,omitempty"`
-	StatCriteria []StatCriterionDTO `json:"statCriteria,omitempty"`
-	Game         string             `json:"game"`
+	ImageURL      *string            `json:"imageUrl,omitempty"`
+	CatalogItemID *string            `json:"catalogItemId,omitempty"`
+	StatCriteria  []StatCriterionDTO `json:"statCriteria,omitempty"`
+	Game          string             `json:"game"`
 	Ladder       *bool              `json:"ladder,omitempty"`
 	Hardcore     *bool              `json:"hardcore,omitempty"`
 	IsNonRotw    *bool              `json:"isNonRotw,omitempty"`

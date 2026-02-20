@@ -15,8 +15,9 @@ type WishlistItem struct {
 	Name         string          `bun:"name,notnull"`
 	Category     *string         `bun:"category"`
 	Rarity       *string         `bun:"rarity"`
-	ImageURL     *string         `bun:"image_url"`
-	StatCriteria []StatCriterion `bun:"stat_criteria,type:jsonb,default:'[]'"`
+	ImageURL      *string         `bun:"image_url"`
+	CatalogItemID *string         `bun:"catalog_item_id"`
+	StatCriteria  []StatCriterion `bun:"stat_criteria,type:jsonb,default:'[]'"`
 	Game         string          `bun:"game,default:'diablo2'"`
 	Ladder       *bool           `bun:"ladder"`
 	Hardcore     *bool           `bun:"hardcore"`

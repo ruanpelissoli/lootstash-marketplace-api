@@ -75,21 +75,22 @@ func (s *WishlistService) Create(ctx context.Context, userID string, req *dto.Cr
 	}
 
 	item := &models.WishlistItem{
-		ID:           uuid.New().String(),
-		UserID:       userID,
-		Name:         req.Name,
-		Category:     req.Category,
-		Rarity:       req.Rarity,
-		ImageURL:     req.ImageURL,
-		StatCriteria: statCriteria,
-		Game:         req.Game,
-		Ladder:       req.Ladder,
-		Hardcore:     req.Hardcore,
-		IsNonRotw:    req.IsNonRotw,
-		Platforms:    req.Platforms,
-		Status:       "active",
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		ID:            uuid.New().String(),
+		UserID:        userID,
+		Name:          req.Name,
+		Category:      req.Category,
+		Rarity:        req.Rarity,
+		ImageURL:      req.ImageURL,
+		CatalogItemID: req.CatalogItemID,
+		StatCriteria:  statCriteria,
+		Game:          req.Game,
+		Ladder:        req.Ladder,
+		Hardcore:      req.Hardcore,
+		IsNonRotw:     req.IsNonRotw,
+		Platforms:     req.Platforms,
+		Status:        "active",
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 
 	if err := s.repo.Create(ctx, item); err != nil {
@@ -137,6 +138,9 @@ func (s *WishlistService) Update(ctx context.Context, id string, userID string, 
 	}
 	if req.ImageURL != nil {
 		item.ImageURL = req.ImageURL
+	}
+	if req.CatalogItemID != nil {
+		item.CatalogItemID = req.CatalogItemID
 	}
 	if req.StatCriteria != nil {
 		var statCriteria []models.StatCriterion
@@ -434,20 +438,21 @@ func (s *WishlistService) ToResponse(item *models.WishlistItem) *dto.WishlistIte
 	}
 
 	return &dto.WishlistItemResponse{
-		ID:           item.ID,
-		UserID:       item.UserID,
-		Name:         item.Name,
-		Category:     item.Category,
-		Rarity:       item.Rarity,
-		ImageURL:     item.ImageURL,
-		StatCriteria: statCriteria,
-		Game:         item.Game,
-		Ladder:       item.Ladder,
-		Hardcore:     item.Hardcore,
-		IsNonRotw:    item.IsNonRotw,
-		Platforms:    item.Platforms,
-		Status:       item.Status,
-		CreatedAt:    item.CreatedAt,
-		UpdatedAt:    item.UpdatedAt,
+		ID:            item.ID,
+		UserID:        item.UserID,
+		Name:          item.Name,
+		Category:      item.Category,
+		Rarity:        item.Rarity,
+		ImageURL:      item.ImageURL,
+		CatalogItemID: item.CatalogItemID,
+		StatCriteria:  statCriteria,
+		Game:          item.Game,
+		Ladder:        item.Ladder,
+		Hardcore:      item.Hardcore,
+		IsNonRotw:     item.IsNonRotw,
+		Platforms:     item.Platforms,
+		Status:        item.Status,
+		CreatedAt:     item.CreatedAt,
+		UpdatedAt:     item.UpdatedAt,
 	}
 }

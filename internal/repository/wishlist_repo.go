@@ -136,39 +136,41 @@ func (r *wishlistRepository) FindMatchingItems(ctx context.Context, listing *mod
 	var items []*models.WishlistItem
 
 	fmt.Printf("[WISHLIST-REPO] FindMatchingItems called\n")
-	fmt.Printf("[WISHLIST-REPO] Listing: id=%s name=%s name_lower=%s game=%s seller=%s\n",
-		listing.ID, listing.Name, strings.ToLower(listing.Name), listing.Game, listing.SellerID)
-	fmt.Printf("[WISHLIST-REPO] Filters: ladder=%v hardcore=%v is_non_rotw=%v platforms=%v region=%s category=%s rarity=%s\n",
-		listing.Ladder, listing.Hardcore, listing.IsNonRotw, listing.Platforms, listing.Region, listing.Category, listing.Rarity)
+	fmt.Printf("[WISHLIST-REPO] Listing: id=%s name=%s catalog_item_id=%s game=%s seller=%s\n",
+		listing.ID, listing.Name, listing.GetCatalogItemID(), listing.Game, listing.SellerID)
+	fmt.Printf("[WISHLIST-REPO] Filters: ladder=%v hardcore=%v is_non_rotw=%v platforms=%v\n",
+		listing.Ladder, listing.Hardcore, listing.IsNonRotw, listing.Platforms)
 
 	log.Info("searching for matching wishlist items",
 		"listing_id", listing.ID,
 		"listing_name", listing.Name,
-		"listing_name_lower", strings.ToLower(listing.Name),
+		"listing_catalog_item_id", listing.GetCatalogItemID(),
 		"listing_game", listing.Game,
 		"listing_seller_id", listing.SellerID,
 		"listing_ladder", listing.Ladder,
 		"listing_hardcore", listing.Hardcore,
 		"listing_platforms", listing.Platforms,
-		"listing_region", listing.Region,
-		"listing_category", listing.Category,
-		"listing_rarity", listing.Rarity,
 	)
 
 	query := r.db.DB().NewSelect().
 		Model(&items).
 		Where("wi.status = ?", "active").
 		Where("wi.game = ?", listing.Game).
-		Where("LOWER(wi.name) = ?", strings.ToLower(listing.Name)).
 		Where("wi.user_id != ?", listing.SellerID)
 
+	// Match by catalogItemId when available, fallback to name
+	if listing.CatalogItemID != nil && *listing.CatalogItemID != "" {
+		query = query.Where("wi.catalog_item_id = ?", *listing.CatalogItemID)
+	} else {
+		query = query.Where("LOWER(wi.name) = ?", strings.ToLower(listing.Name))
+	}
+
 	// NULL filter fields act as wildcards — only filter when the wishlist field is NOT NULL
+	query = query.Where("(wi.rarity IS NULL OR wi.rarity = ?)", listing.Rarity)
 	query = query.Where("(wi.ladder IS NULL OR wi.ladder = ?)", listing.Ladder)
 	query = query.Where("(wi.hardcore IS NULL OR wi.hardcore = ?)", listing.Hardcore)
 	query = query.Where("(wi.is_non_rotw IS NULL OR wi.is_non_rotw = ?)", listing.IsNonRotw)
 	query = query.Where("(wi.platforms IS NULL OR wi.platforms = '{}' OR wi.platforms && ?)", pgdialect.Array(listing.Platforms))
-	query = query.Where("(wi.category IS NULL OR wi.category = ?)", listing.Category)
-	query = query.Where("(wi.rarity IS NULL OR wi.rarity = ?)", listing.Rarity)
 
 	fmt.Printf("[WISHLIST-REPO] Executing query...\n")
 	err := query.Scan(ctx)
