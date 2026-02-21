@@ -26,7 +26,8 @@ const (
 	maxRecentListings      = 20
 	FreeListingLimit       = 10
 	FreeRefreshCooldown    = 24 * time.Hour
-	PremiumRefreshCooldown = 6 * time.Hour
+	PremiumRefreshCooldown = 4 * time.Hour
+	PremiumBoostDuration   = 2 * time.Hour
 )
 
 // ListingService handles listing business logic
@@ -525,6 +526,7 @@ func (s *ListingService) ToCardResponse(listing *models.Listing) *dto.ListingCar
 
 	if listing.Seller != nil {
 		resp.Seller = s.profileService.ToResponse(listing.Seller)
+		resp.IsBoosted = listing.Seller.IsPremium && time.Since(listing.CreatedAt) < PremiumBoostDuration
 	}
 
 	return resp
@@ -566,6 +568,7 @@ func (s *ListingService) ToResponse(listing *models.Listing) *dto.ListingRespons
 
 	if listing.Seller != nil {
 		resp.Seller = s.profileService.ToResponse(listing.Seller)
+		resp.IsBoosted = listing.Seller.IsPremium && time.Since(listing.CreatedAt) < PremiumBoostDuration
 	}
 
 	return resp

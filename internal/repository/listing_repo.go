@@ -308,6 +308,10 @@ func (r *listingRepository) applyAskingForFilter(query *bun.SelectQuery, af Aski
 	return query.Where(clause, args...)
 }
 
+// PremiumBoostMinutes is the duration (in minutes) that premium listings
+// appear at the top of results after creation or refresh.
+const PremiumBoostMinutes = 120
+
 func (r *listingRepository) applySorting(query *bun.SelectQuery, filter ListingFilter) *bun.SelectQuery {
 	sortBy := filter.SortBy
 	if sortBy == "" {
@@ -331,10 +335,15 @@ func (r *listingRepository) applySorting(query *bun.SelectQuery, filter ListingF
 		sortOrder = "DESC"
 	}
 
-	// JOIN profiles so we can sort premium sellers first
+	// JOIN profiles so we can check premium status for boost sorting
 	query = query.Join("JOIN d2.profiles AS p ON p.id = l.seller_id")
 
-	return query.OrderExpr(fmt.Sprintf("p.is_premium DESC, %s %s", sortField, sortOrder))
+	// Premium listings created/refreshed within the boost window appear first.
+	// After the boost expires, they sort normally alongside free listings.
+	return query.OrderExpr(fmt.Sprintf(
+		"CASE WHEN p.is_premium AND l.created_at > NOW() - INTERVAL '%d minutes' THEN 0 ELSE 1 END, %s %s",
+		PremiumBoostMinutes, sortField, sortOrder,
+	))
 }
 
 func (r *listingRepository) CountActiveBySellerID(ctx context.Context, sellerID string) (int, error) {

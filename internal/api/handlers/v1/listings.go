@@ -351,7 +351,7 @@ func (h *ListingHandler) Refresh(c *fiber.Ctx) error {
 		if errors.Is(err, service.ErrRefreshCooldown) {
 			return c.Status(fiber.StatusTooManyRequests).JSON(dto.ErrorResponse{
 				Error:   "refresh_cooldown",
-				Message: "Listing refresh is on cooldown. Free users: 24 hours. Premium users: 6 hours.",
+				Message: "Listing refresh is on cooldown. Free users: 24 hours. Premium users: 4 hours.",
 				Code:    429,
 			})
 		}

@@ -27,6 +27,7 @@ type ListingCardResponse struct {
 	Region         string           `json:"region"`
 	SellerTimezone string           `json:"sellerTimezone,omitempty"`
 	Views          int              `json:"views"`
+	IsBoosted      bool             `json:"isBoosted"`
 	CreatedAt      time.Time        `json:"createdAt"`
 }
 
@@ -60,6 +61,7 @@ type ListingResponse struct {
 	SellerTimezone string           `json:"sellerTimezone,omitempty"`
 	Status         string           `json:"status"`
 	Views          int              `json:"views"`
+	IsBoosted      bool             `json:"isBoosted"`
 	CreatedAt      time.Time        `json:"createdAt"`
 	ExpiresAt      time.Time        `json:"expiresAt,omitempty"`
 }
