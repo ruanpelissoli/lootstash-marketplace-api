@@ -322,66 +322,85 @@ func (s *ServiceService) ToProviderCardResponse(provider *models.Profile, servic
 	}
 }
 
-// ToRecentServiceResponse converts a service model to a recent service DTO (includes provider)
-func (s *ServiceService) ToRecentServiceResponse(service *models.Service) *dto.RecentServiceResponse {
-	resp := &dto.RecentServiceResponse{
-		ID:          service.ID,
-		ServiceType: service.ServiceType,
-		Name:        service.Name,
-		Game:        service.Game,
-		Ladder:      service.Ladder,
-		Hardcore:    service.Hardcore,
-		IsNonRotw:   service.IsNonRotw,
-		Platforms:   service.Platforms,
-		Region:      service.Region,
-		CreatedAt:   service.CreatedAt,
-	}
-	if service.Provider != nil {
-		resp.Provider = s.profileService.ToResponse(service.Provider)
-	}
-	return resp
-}
-
-// pushToRecentServices adds a service to the home:recent:services Redis list
+// pushToRecentServices adds/updates a provider's service in the home:recent:services cache
 func (s *ServiceService) pushToRecentServices(ctx context.Context, service *models.Service) {
-	resp := s.ToRecentServiceResponse(service)
-	data, err := json.Marshal(resp)
-	if err != nil {
-		return
+	cards := s.readRecentServicesCards(ctx)
+
+	serviceResp := s.ToServiceResponse(service)
+	providerResp := s.profileService.ToResponse(service.Provider)
+
+	// Find existing provider card
+	found := false
+	for i, card := range cards {
+		if card.Provider != nil && card.Provider.ID == service.ProviderID {
+			cards[i].Services = append(cards[i].Services, *serviceResp)
+			found = true
+			break
+		}
 	}
-	_ = s.redis.LPush(ctx, cache.HomeRecentServicesKey(), string(data))
-	_ = s.redis.LTrim(ctx, cache.HomeRecentServicesKey(), 0, int64(maxRecentServices-1))
+
+	if !found {
+		newCard := dto.ProviderCardResponse{
+			Provider: providerResp,
+			Services: []dto.ServiceResponse{*serviceResp},
+		}
+		cards = append([]dto.ProviderCardResponse{newCard}, cards...)
+	}
+
+	if len(cards) > maxRecentServices {
+		cards = cards[:maxRecentServices]
+	}
+
+	s.writeRecentServicesCards(ctx, cards)
 }
 
-// removeFromRecentServices removes a service from the home:recent:services Redis list by ID
+// removeFromRecentServices removes a service from the home:recent:services cache by ID
 func (s *ServiceService) removeFromRecentServices(ctx context.Context, id string) {
-	items, err := s.redis.LRange(ctx, cache.HomeRecentServicesKey(), 0, int64(maxRecentServices-1))
-	if err != nil || len(items) == 0 {
-		return
-	}
-	for _, item := range items {
-		var svc dto.RecentServiceResponse
-		if json.Unmarshal([]byte(item), &svc) == nil && svc.ID == id {
-			_ = s.redis.LRem(ctx, cache.HomeRecentServicesKey(), 1, item)
-			return
+	cards := s.readRecentServicesCards(ctx)
+
+	for i, card := range cards {
+		for j, svc := range card.Services {
+			if svc.ID == id {
+				cards[i].Services = append(card.Services[:j], card.Services[j+1:]...)
+				if len(cards[i].Services) == 0 {
+					cards = append(cards[:i], cards[i+1:]...)
+				}
+				s.writeRecentServicesCards(ctx, cards)
+				return
+			}
 		}
 	}
 }
 
-// GetRecentServices returns recent services from the home:recent:services cache
-func (s *ServiceService) GetRecentServices(ctx context.Context) ([]dto.RecentServiceResponse, error) {
-	items, err := s.redis.LRange(ctx, cache.HomeRecentServicesKey(), 0, int64(maxRecentServices-1))
+// GetRecentServices returns recent services from the home:recent:services cache in provider card format
+func (s *ServiceService) GetRecentServices(ctx context.Context) ([]dto.ProviderCardResponse, error) {
+	cards := s.readRecentServicesCards(ctx)
+	if cards == nil {
+		return nil, nil
+	}
+	return cards, nil
+}
+
+// readRecentServicesCards reads the provider cards from Redis
+func (s *ServiceService) readRecentServicesCards(ctx context.Context) []dto.ProviderCardResponse {
+	data, err := s.redis.Get(ctx, cache.HomeRecentServicesKey())
+	if err != nil || data == "" {
+		return nil
+	}
+	var cards []dto.ProviderCardResponse
+	if json.Unmarshal([]byte(data), &cards) != nil {
+		return nil
+	}
+	return cards
+}
+
+// writeRecentServicesCards writes the provider cards to Redis
+func (s *ServiceService) writeRecentServicesCards(ctx context.Context, cards []dto.ProviderCardResponse) {
+	data, err := json.Marshal(cards)
 	if err != nil {
-		return nil, err
+		return
 	}
-	results := make([]dto.RecentServiceResponse, 0, len(items))
-	for _, item := range items {
-		var svc dto.RecentServiceResponse
-		if json.Unmarshal([]byte(item), &svc) == nil {
-			results = append(results, svc)
-		}
-	}
-	return results, nil
+	_ = s.redis.Set(ctx, cache.HomeRecentServicesKey(), string(data), 0)
 }
 
 // WarmRecentServices populates the home:recent:services cache on startup
@@ -396,47 +415,15 @@ func (s *ServiceService) WarmRecentServices(ctx context.Context) {
 		return
 	}
 
-	// Collect all services from all providers, sorted by created_at desc
-	type serviceWithProvider struct {
-		service  *models.Service
-		provider *models.Profile
-	}
-	var all []serviceWithProvider
-	for _, pw := range providers {
-		for _, svc := range pw.Services {
-			svc.Provider = pw.Provider
-			all = append(all, serviceWithProvider{service: svc, provider: pw.Provider})
-		}
-	}
-
-	// Sort by created_at desc
-	for i := 0; i < len(all); i++ {
-		for j := i + 1; j < len(all); j++ {
-			if all[j].service.CreatedAt.After(all[i].service.CreatedAt) {
-				all[i], all[j] = all[j], all[i]
-			}
-		}
-	}
-
-	// Cap at maxRecentServices
-	if len(all) > maxRecentServices {
-		all = all[:maxRecentServices]
-	}
-
-	if len(all) == 0 {
+	if len(providers) == 0 {
 		return
 	}
 
-	// Delete existing key
-	_ = s.redis.Del(ctx, cache.HomeRecentServicesKey())
-
-	// Push in reverse order so newest is at index 0
-	for i := len(all) - 1; i >= 0; i-- {
-		resp := s.ToRecentServiceResponse(all[i].service)
-		data, err := json.Marshal(resp)
-		if err != nil {
-			continue
-		}
-		_ = s.redis.LPush(ctx, cache.HomeRecentServicesKey(), string(data))
+	// Convert to provider card responses (same format as search endpoint)
+	cards := make([]dto.ProviderCardResponse, 0, len(providers))
+	for _, pw := range providers {
+		cards = append(cards, s.ToProviderCardResponse(pw.Provider, pw.Services))
 	}
+
+	s.writeRecentServicesCards(ctx, cards)
 }

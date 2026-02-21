@@ -25,21 +25,6 @@ type ServiceResponse struct {
 	UpdatedAt   time.Time       `json:"updatedAt"`
 }
 
-// RecentServiceResponse represents a service in the recent services list
-type RecentServiceResponse struct {
-	ID          string           `json:"id"`
-	ServiceType string           `json:"serviceType"`
-	Name        string           `json:"name"`
-	Game        string           `json:"game"`
-	Ladder      bool             `json:"ladder"`
-	Hardcore    bool             `json:"hardcore"`
-	IsNonRotw   bool             `json:"isNonRotw"`
-	Platforms   []string         `json:"platforms"`
-	Region      string           `json:"region"`
-	Provider    *ProfileResponse `json:"provider,omitempty"`
-	CreatedAt   time.Time        `json:"createdAt"`
-}
-
 // ProviderCardResponse represents a provider with all their services
 type ProviderCardResponse struct {
 	Provider *ProfileResponse  `json:"provider"`

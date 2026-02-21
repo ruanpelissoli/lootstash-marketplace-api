@@ -69,7 +69,7 @@ func (h *StatsHandler) GetRecentServices(c *fiber.Ctx) error {
 	}
 
 	if services == nil {
-		services = []dto.RecentServiceResponse{}
+		services = []dto.ProviderCardResponse{}
 	}
 
 	return c.JSON(services)
