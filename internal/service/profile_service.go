@@ -138,6 +138,9 @@ func (s *ProfileService) Update(ctx context.Context, userID string, req *dto.Upd
 	if req.PreferredNonRotw != nil {
 		profile.PreferredNonRotw = req.PreferredNonRotw
 	}
+	if req.DesktopNotificationsEnabled != nil {
+		profile.DesktopNotificationsEnabled = *req.DesktopNotificationsEnabled
+	}
 
 	if err := s.repo.Update(ctx, profile); err != nil {
 		return nil, err
@@ -183,8 +186,9 @@ func (s *ProfileService) ToMyProfileResponse(profile *models.Profile) *dto.MyPro
 		PreferredHardcore:  profile.PreferredHardcore,
 		PreferredPlatforms: profile.PreferredPlatforms,
 		PreferredRegion:    profile.GetPreferredRegion(),
-		PreferredNonRotw:   profile.PreferredNonRotw,
-		UpdatedAt:          profile.UpdatedAt,
+		PreferredNonRotw:            profile.PreferredNonRotw,
+		DesktopNotificationsEnabled: profile.DesktopNotificationsEnabled,
+		UpdatedAt:                   profile.UpdatedAt,
 	}
 }
 

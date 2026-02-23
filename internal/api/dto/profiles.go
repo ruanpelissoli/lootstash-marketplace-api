@@ -29,8 +29,9 @@ type MyProfileResponse struct {
 	PreferredHardcore  *bool      `json:"preferredHardcore,omitempty"`
 	PreferredPlatforms []string   `json:"preferredPlatforms,omitempty"`
 	PreferredRegion    string     `json:"preferredRegion,omitempty"`
-	PreferredNonRotw   *bool      `json:"preferredNonRotw,omitempty"`
-	UpdatedAt          time.Time  `json:"updatedAt"`
+	PreferredNonRotw            *bool     `json:"preferredNonRotw,omitempty"`
+	DesktopNotificationsEnabled bool      `json:"desktopNotificationsEnabled"`
+	UpdatedAt                   time.Time `json:"updatedAt"`
 }
 
 // UpdateProfileRequest represents a profile update request
@@ -42,7 +43,8 @@ type UpdateProfileRequest struct {
 	PreferredHardcore  *bool    `json:"preferredHardcore"`
 	PreferredPlatforms []string `json:"preferredPlatforms" validate:"omitempty,dive,oneof=pc xbox playstation switch"`
 	PreferredRegion    *string  `json:"preferredRegion" validate:"omitempty,oneof=americas europe asia"`
-	PreferredNonRotw   *bool    `json:"preferredNonRotw"`
+	PreferredNonRotw            *bool `json:"preferredNonRotw"`
+	DesktopNotificationsEnabled *bool `json:"desktopNotificationsEnabled"`
 }
 
 // UploadPictureResponse represents the response after uploading a profile picture
