@@ -263,6 +263,14 @@ type BugReportRepository interface {
 	List(ctx context.Context, status string, offset, limit int) ([]*models.BugReport, int, error)
 }
 
+// DeviceTokenRepository defines the interface for device token data access
+type DeviceTokenRepository interface {
+	Upsert(ctx context.Context, token *models.DeviceToken) error
+	DeleteByToken(ctx context.Context, userID string, expoPushToken string) error
+	GetByUserID(ctx context.Context, userID string) ([]*models.DeviceToken, error)
+	DeleteAllByUserID(ctx context.Context, userID string) error
+}
+
 // RatingRepository defines the interface for rating data access
 type RatingRepository interface {
 	Create(ctx context.Context, rating *models.Rating) error

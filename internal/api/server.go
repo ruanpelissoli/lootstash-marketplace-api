@@ -122,6 +122,7 @@ func (s *Server) setupRoutes() {
 	chatRepo := repository.NewChatRepository(s.db)
 	messageRepo := repository.NewMessageRepository(s.db)
 	notificationRepo := repository.NewNotificationRepository(s.db)
+	deviceTokenRepo := repository.NewDeviceTokenRepository(s.db)
 	transactionRepo := repository.NewTransactionRepository(s.db)
 	ratingRepo := repository.NewRatingRepository(s.db)
 	statsRepo := repository.NewStatsRepository(s.db)
@@ -203,6 +204,7 @@ func (s *Server) setupRoutes() {
 	)
 
 	bugReportService := service.NewBugReportService(bugReportRepo)
+	deviceTokenService := service.NewDeviceTokenService(deviceTokenRepo)
 
 	// Create handlers
 	profileHandler := v1.NewProfileHandler(profileService)
@@ -221,6 +223,7 @@ func (s *Server) setupRoutes() {
 	bugReportHandler := v1.NewBugReportHandler(bugReportService)
 	serviceHandler := v1.NewServiceHandler(serviceService)
 	serviceRunHandler := v1.NewServiceRunHandler(serviceRunService)
+	deviceTokenHandler := v1.NewDeviceTokenHandler(deviceTokenService)
 
 	// Auth middleware config
 	authConfig := middleware.AuthConfig{
@@ -356,6 +359,10 @@ func (s *Server) setupRoutes() {
 	authenticated.Get("/notifications", notificationHandler.List)
 	authenticated.Get("/notifications/count", notificationHandler.Count)
 	authenticated.Post("/notifications/read", notificationHandler.MarkRead)
+
+	// Device token routes (mobile push notifications)
+	authenticated.Post("/device-tokens", deviceTokenHandler.Register)
+	authenticated.Delete("/device-tokens", deviceTokenHandler.Unregister)
 
 	// Rating routes
 	authenticated.Post("/ratings", ratingHandler.Create)
