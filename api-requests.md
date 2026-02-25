@@ -2390,6 +2390,460 @@ The trading system supports two flows: item trades and service runs.
 - When a trade is cancelled, the listing becomes **visible** again
 - When a trade is completed, the listing is marked as **completed** (removed from listings)
 - Messaging is only available while the trade is **active**
+- When a listing is created (via any path), a **stash item** is automatically created and linked
+
+---
+
+## Stash (Inventory Manager)
+
+The Stash lets users track their Diablo II items. Since Blizzard provides no inventory API, users add items manually, via bulk screenshot import, or items are auto-tracked through trades and listings. All stash endpoints require authentication.
+
+**Key Concepts:**
+- **Stash items are immutable** — no PATCH/update endpoint. Only quantity adjustment and deletion.
+- **Stackable items** (categories: `rune`, `gem`, `misc`) support `quantity > 1`. Non-stackable items are always `quantity=1`.
+- **`isListed`** — boolean flag indicating whether this row represents listed or unlisted quantity.
+- **Listed/unlisted split**: When a stackable item is partially listed, the list endpoint returns **two rows** for the same `id` — one with `isListed: false` (unlisted portion) and one with `isListed: true` (listed portion). When the user unlists, they merge back into a single row. Use `id + isListed` as the unique key in the frontend.
+- **`displayName`** = `name` if set, otherwise `itemType`. Example: `name="Harlequin Crest"` shows that; if name is null and `itemType="War Hat"`, shows "War Hat".
+- **Source tracking**: `"manual"` (user added), `"import"` (screenshot import), `"trade"` (auto-created on trade completion), `"listing"` (auto-created when user lists directly).
+- **Auto-stash on listing**: When a user creates a listing via `POST /api/v1/listings`, a stash item is automatically created and linked (`stash_item_id` on the listing). The stash-to-listing flow (`POST /api/v1/stash/list`) skips this auto-creation since the stash item already exists.
+- **Trade completion auto-tracking**: When a trade completes, the seller's stash item is decremented (and deleted if quantity reaches 0), the buyer receives a new stash item from the listing data, and offered items with `stashItemId` are decremented from the buyer's stash while the seller receives new stash items.
+
+### GET /api/v1/stash
+
+List the current user's stash items (filtered, paginated). Same filtering capabilities as listings.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| q | string | Text search in item name or itemType (ILIKE) |
+| categories | string | Comma-separated category filter (e.g., "helms,weapons") |
+| rarity | string | Rarity filter (normal, superior, magic, rare, unique, set, runeword) |
+| catalogItemId | string | Exact match on catalog item ID |
+| affixFilters | json | JSON array of affix filters: `[{"code":"all_skills","minValue":2}]` |
+| sortBy | string | Sort field: name, rarity, quantity, created_at (default) |
+| sortOrder | string | Sort direction: asc, desc (default) |
+| page | number | Page number (default: 1) |
+| perPage | number | Items per page (default: 20, max: 100) |
+
+**Response:**
+
+Items that are partially listed are split into two rows with the same `id` — one unlisted, one listed. Use `id + isListed` as the unique key.
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid-shako",
+      "userId": "uuid",
+      "name": "Harlequin Crest",
+      "itemType": "Shako",
+      "displayName": "Harlequin Crest",
+      "rarity": "unique",
+      "imageUrl": "https://...",
+      "category": "helms",
+      "stats": [
+        {"code": "all_skills", "value": 2, "displayText": "+2 To All Skills", "isVariable": false},
+        {"code": "life", "value": 141, "displayText": "+141 To Life", "isVariable": true}
+      ],
+      "suffixes": [],
+      "runes": [],
+      "runeOrder": "",
+      "baseItemCode": "",
+      "baseItemName": "",
+      "catalogItemId": "",
+      "quantity": 1,
+      "isListed": true,
+      "isStackable": false,
+      "game": "diablo2",
+      "ladder": true,
+      "hardcore": false,
+      "platforms": ["pc"],
+      "region": "americas",
+      "source": "manual",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "uuid-amethyst",
+      "userId": "uuid",
+      "itemType": "Amethyst",
+      "displayName": "Amethyst",
+      "rarity": "normal",
+      "category": "gem",
+      "quantity": 3,
+      "isListed": false,
+      "isStackable": true,
+      "source": "manual",
+      "...": "..."
+    },
+    {
+      "id": "uuid-amethyst",
+      "userId": "uuid",
+      "itemType": "Amethyst",
+      "displayName": "Amethyst",
+      "rarity": "normal",
+      "category": "gem",
+      "quantity": 2,
+      "isListed": true,
+      "isStackable": true,
+      "source": "manual",
+      "...": "..."
+    }
+  ],
+  "page": 1,
+  "perPage": 20,
+  "totalCount": 45,
+  "totalPages": 3
+}
+```
+
+**Error Responses:**
+- `401` - Unauthorized
+
+---
+
+### POST /api/v1/stash
+
+Add an item to the stash manually.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "name": "Harlequin Crest (optional — nullable, for unique/set names)",
+  "itemType": "Shako (required — base type)",
+  "rarity": "unique (required: normal|superior|magic|rare|unique|set|runeword)",
+  "imageUrl": "https://... (optional)",
+  "category": "helms (optional)",
+  "stats": [
+    {"code": "all_skills", "value": 2, "displayText": "+2 To All Skills", "isVariable": false}
+  ],
+  "suffixes": [],
+  "runes": ["r08", "r03"],
+  "runeOrder": "r08r03 (optional)",
+  "baseItemCode": "uap (optional)",
+  "baseItemName": "War Hat (optional)",
+  "catalogItemId": "string (optional)",
+  "quantity": 5,
+  "game": "diablo2 (required)",
+  "ladder": true,
+  "hardcore": false,
+  "platforms": ["pc"],
+  "region": "americas (required: americas|europe|asia)"
+}
+```
+
+**Notes:**
+- `name` is optional. If omitted, `displayName` in the response will fall back to `itemType`.
+- `quantity` defaults to 1. Values > 1 are only honored for stackable categories (`rune`, `gem`, `misc`). Non-stackable items are forced to `quantity=1`.
+- Same item fields as `POST /api/v1/listings` minus `askingFor`, `askingPrice`, and `notes`.
+
+**Response:** `201 Created`
+```json
+{
+  "id": "uuid",
+  "userId": "uuid",
+  "name": "Harlequin Crest",
+  "itemType": "Shako",
+  "displayName": "Harlequin Crest",
+  "quantity": 1,
+  "isListed": false,
+  "isStackable": false,
+  "source": "manual",
+  ...
+}
+```
+
+**Error Responses:**
+- `400` - Validation error
+- `401` - Unauthorized
+
+---
+
+### GET /api/v1/stash/:id
+
+Get a stash item's full details. Only the owner can view their own stash items.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Path Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | uuid | Stash item ID |
+
+**Response:** Same shape as items in the list response.
+
+**Error Responses:**
+- `401` - Unauthorized
+- `404` - Stash item not found (or not owned by user)
+
+---
+
+### DELETE /api/v1/stash/:id
+
+Delete a stash item (hard delete). Only the owner can delete.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Path Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | uuid | Stash item ID |
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Stash item deleted"
+}
+```
+
+**Error Responses:**
+- `401` - Unauthorized
+- `404` - Stash item not found
+
+---
+
+### POST /api/v1/stash/:id/quantity
+
+Adjust the quantity of a stackable stash item. Positive values increment, negative values decrement. If quantity reaches 0, the item is automatically deleted.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Path Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | uuid | Stash item ID |
+
+**Request Body:**
+```json
+{
+  "quantity": 3
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| quantity | integer | Amount to adjust. Positive = add, negative = subtract. Cannot be 0. |
+
+**Response:** Updated `StashItemResponse`.
+
+**Error Responses:**
+- `400` - Validation error
+- `401` - Unauthorized
+- `404` - Stash item not found (or deleted because quantity reached 0)
+- `409` - Only stackable items (rune, gem, misc) support quantity adjustment
+
+---
+
+### POST /api/v1/stash/list
+
+Create a listing directly from a stash item. Reuses the full listing creation flow (limit checks, wishlist matching, etc.).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "stashItemId": "uuid (required)",
+  "amount": 1,
+  "askingFor": [{"type": "rune", "name": "Ist"}],
+  "askingPrice": "1.5 Ist (optional)",
+  "notes": "Perfect roll (optional, max 500 chars)"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| stashItemId | uuid | The stash item to list (required) |
+| amount | integer | How many to list (default 1). Must not exceed the unlisted quantity. |
+| askingFor | json | What the seller wants in return |
+| askingPrice | string | Price description |
+| notes | string | Listing notes |
+
+**Response:** `201 Created`
+```json
+{
+  "success": true,
+  "listingId": "uuid"
+}
+```
+
+**Error Responses:**
+- `400` - Validation error
+- `401` - Unauthorized
+- `403` - Listing limit reached (free users: max 10 active listings)
+- `404` - Stash item not found
+- `409` - Insufficient available quantity (quantity minus already-listed amount)
+
+---
+
+### POST /api/v1/stash/import/preview
+
+Parse item screenshots using Claude Vision AI. Returns parsed item data for user review — **nothing is saved to the database**. The user reviews/corrects the parsed data, then calls the confirm endpoint.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+```
+
+**Form Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| images | file[] | Image files (JPEG, PNG, GIF, WebP). Max 10 files. |
+| game | string | Game code (default: "diablo2") |
+| ladder | string | "true" or "false" (default: "false") |
+| hardcore | string | "true" or "false" (default: "false") |
+| region | string | Region (default: "americas") |
+| platforms | string | Comma-separated platforms (default: "pc") |
+
+**Response:**
+```json
+{
+  "items": [
+    {
+      "name": "Harlequin Crest",
+      "itemType": "Shako",
+      "rarity": "unique",
+      "category": "helms",
+      "stats": [
+        {"code": "all_skills", "value": 2, "displayText": "+2 To All Skills", "isVariable": false}
+      ],
+      "baseItemCode": "uap",
+      "baseItemName": "War Hat",
+      "imageUrl": "https://storage.../stash/userId/uuid-filename.png",
+      "quantity": 1,
+      "isStackable": false
+    }
+  ],
+  "errors": [
+    {
+      "index": 2,
+      "file": "blurry_screenshot.png",
+      "message": "Failed to parse item: no JSON found in vision response"
+    }
+  ]
+}
+```
+
+**Notes:**
+- Images are uploaded to storage immediately (so they persist for the confirm step).
+- Each file is processed independently — partial success is possible.
+- The frontend should display the parsed items in an editable form for the user to correct before confirming.
+
+**Error Responses:**
+- `400` - No images provided / Invalid form data
+- `401` - Unauthorized
+- `503` - Vision import not configured (ANTHROPIC_API_KEY not set on server)
+
+---
+
+### POST /api/v1/stash/import/confirm
+
+Save reviewed/corrected items from the preview step to the database. The frontend sends the final corrected data.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "items": [
+    {
+      "name": "Harlequin Crest",
+      "itemType": "Shako",
+      "rarity": "unique",
+      "imageUrl": "https://storage.../stash/userId/uuid-filename.png",
+      "category": "helms",
+      "stats": [...],
+      "game": "diablo2",
+      "ladder": true,
+      "hardcore": false,
+      "platforms": ["pc"],
+      "region": "americas",
+      "quantity": 1
+    }
+  ]
+}
+```
+
+**Notes:**
+- Each item in the array follows the same shape as `CreateStashItemRequest` (same as `POST /api/v1/stash` body).
+- All items are saved with `source="import"`.
+- The `imageUrl` should be the URL returned from the preview step.
+
+**Response:** `201 Created`
+```json
+[
+  {
+    "id": "uuid",
+    "userId": "uuid",
+    "name": "Harlequin Crest",
+    "displayName": "Harlequin Crest",
+    "source": "import",
+    ...
+  }
+]
+```
+
+**Error Responses:**
+- `400` - Validation error / Empty items array
+- `401` - Unauthorized
+
+---
+
+### Offered Items with Stash Linking
+
+When creating an offer (`POST /api/v1/offers`), offered items can optionally include a `stashItemId` to link to the buyer's stash. This is backward compatible — `stashItemId` is optional.
+
+**Extended offered items format:**
+```json
+{
+  "offeredItems": [
+    {
+      "id": "item-uuid",
+      "name": "Stone of Jordan",
+      "type": "ring",
+      "imageUrl": "https://...",
+      "quantity": 1,
+      "stashItemId": "stash-item-uuid"
+    }
+  ]
+}
+```
+
+When `stashItemId` is provided:
+- The API validates that the stash item belongs to the offer requester.
+- The API validates sufficient unlisted quantity.
+- On trade completion, the buyer's stash item quantity is automatically decremented.
 
 ---
 
