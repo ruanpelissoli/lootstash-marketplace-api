@@ -137,6 +137,14 @@ func (m *MockListingRepository) CancelOldestActiveListings(ctx context.Context, 
 	return args.Int(0), args.Error(1)
 }
 
+func (m *MockListingRepository) GetActiveListingByStashItemID(ctx context.Context, stashItemID string) (*models.Listing, error) {
+	args := m.Called(ctx, stashItemID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Listing), args.Error(1)
+}
+
 // MockStatsRepository is a mock implementation of repository.StatsRepository
 type MockStatsRepository struct {
 	mock.Mock
@@ -656,4 +664,81 @@ func (m *MockBillingEventRepository) GetByUserID(ctx context.Context, userID str
 func (m *MockBillingEventRepository) ExistsByStripeEventID(ctx context.Context, stripeEventID string) (bool, error) {
 	args := m.Called(ctx, stripeEventID)
 	return args.Bool(0), args.Error(1)
+}
+
+// MockStashItemRepository is a mock implementation of repository.StashItemRepository
+type MockStashItemRepository struct {
+	mock.Mock
+}
+
+func (m *MockStashItemRepository) Create(ctx context.Context, item *models.StashItem) error {
+	args := m.Called(ctx, item)
+	return args.Error(0)
+}
+
+func (m *MockStashItemRepository) CreateBatch(ctx context.Context, items []*models.StashItem) error {
+	args := m.Called(ctx, items)
+	return args.Error(0)
+}
+
+func (m *MockStashItemRepository) GetByID(ctx context.Context, id string) (*models.StashItem, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.StashItem), args.Error(1)
+}
+
+func (m *MockStashItemRepository) GetByIDAndUserID(ctx context.Context, id string, userID string) (*models.StashItem, error) {
+	args := m.Called(ctx, id, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.StashItem), args.Error(1)
+}
+
+func (m *MockStashItemRepository) Delete(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockStashItemRepository) ListByUserID(ctx context.Context, userID string, filter repository.StashFilter) ([]*models.StashItem, int, error) {
+	args := m.Called(ctx, userID, filter)
+	if args.Get(0) == nil {
+		return nil, args.Int(1), args.Error(2)
+	}
+	return args.Get(0).([]*models.StashItem), args.Int(1), args.Error(2)
+}
+
+func (m *MockStashItemRepository) CountByUserID(ctx context.Context, userID string) (int, error) {
+	args := m.Called(ctx, userID)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *MockStashItemRepository) DecrementQuantity(ctx context.Context, id string, amount int) error {
+	args := m.Called(ctx, id, amount)
+	return args.Error(0)
+}
+
+func (m *MockStashItemRepository) IncrementQuantity(ctx context.Context, id string, amount int) error {
+	args := m.Called(ctx, id, amount)
+	return args.Error(0)
+}
+
+func (m *MockStashItemRepository) DeleteIfZeroQuantity(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockStashItemRepository) FindMatchingForStack(ctx context.Context, userID, name, itemType, category string, catalogItemID *string) (*models.StashItem, error) {
+	args := m.Called(ctx, userID, name, itemType, category, catalogItemID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.StashItem), args.Error(1)
+}
+
+func (m *MockStashItemRepository) GetListedAmountForStashItem(ctx context.Context, stashItemID string) (int, error) {
+	args := m.Called(ctx, stashItemID)
+	return args.Int(0), args.Error(1)
 }

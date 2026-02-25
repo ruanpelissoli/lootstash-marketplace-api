@@ -135,6 +135,23 @@ func runServe(cmd *cobra.Command, args []string) error {
 		log.Warn("SUPABASE_S3_ACCESS_KEY or SUPABASE_S3_SECRET_KEY not set, avatar uploads will be disabled")
 	}
 
+	// Initialize storage for stash item images
+	var stashStorage storage.Storage
+	if s3AccessKey != "" && s3SecretKey != "" {
+		s3Endpoint := supabaseURL + "/storage/v1/s3"
+		s3Region := os.Getenv("SUPABASE_S3_REGION")
+		if s3Region == "" {
+			s3Region = "local"
+		}
+		var err error
+		stashStorage, err = storage.NewS3Storage(s3Endpoint, s3AccessKey, s3SecretKey, s3Region, "stash-items", supabaseURL)
+		if err != nil {
+			log.Error("failed to initialize stash S3 storage", "error", err)
+		} else {
+			log.Info("stash storage initialized (S3)", "bucket", "stash-items")
+		}
+	}
+
 	// Create server config
 	authDebug := strings.ToLower(os.Getenv("AUTH_DEBUG")) == "true"
 	config := &api.Config{
@@ -155,10 +172,12 @@ func runServe(cmd *cobra.Command, args []string) error {
 		StripeSuccessURL:      GetStripeSuccessURL(),
 		StripeCancelURL:       GetStripeCancelURL(),
 		StripeAllowedPriceIDs: GetStripeAllowedPriceIDs(),
+		AnthropicAPIKey:       GetAnthropicAPIKey(),
+		CatalogAPIURL:         GetCatalogAPIURL(),
 	}
 
 	// Create and start server
-	server := api.NewServer(db, redisClient, avatarStorage, config)
+	server := api.NewServer(db, redisClient, avatarStorage, stashStorage, config)
 
 	// Handle graceful shutdown
 	shutdown := make(chan os.Signal, 1)

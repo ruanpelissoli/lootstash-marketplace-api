@@ -25,6 +25,7 @@ type Listing struct {
 	BaseItemCode  *string         `bun:"base_item_code"`
 	BaseItemName  *string         `bun:"base_item_name"`
 	CatalogItemID *string         `bun:"catalog_item_id"`
+	StashItemID   *string         `bun:"stash_item_id,type:uuid"`
 	AskingFor    json.RawMessage `bun:"asking_for,type:jsonb,default:'[]'"`
 	AskingPrice *string         `bun:"asking_price"`
 	Amount      int             `bun:"amount,notnull,default:1"`

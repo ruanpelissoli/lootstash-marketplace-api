@@ -97,6 +97,7 @@ type CreateListingRequest struct {
 	IsNonRotw     bool            `json:"isNonRotw"`
 	Platforms     []string        `json:"platforms" validate:"required,min=1,dive,oneof=pc xbox playstation switch"`
 	Region        string          `json:"region" validate:"required,oneof=americas europe asia"`
+	StashItemID   string          `json:"-"` // Internal: set by CreateListingFromStash to skip auto-stash creation
 }
 
 // UpdateListingRequest represents a request to update a listing

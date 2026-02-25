@@ -26,6 +26,8 @@ var (
 	stripePriceIDUSD      string
 	stripePriceIDEUR      string
 	stripePriceIDBRL      string
+	anthropicAPIKey       string
+	catalogAPIURL        string
 )
 
 var rootCmd = &cobra.Command{
@@ -60,6 +62,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&stripePriceIDUSD, "stripe-price-id-usd", getEnvOrDefault("STRIPE_PRICE_ID_USD", ""), "Stripe price ID for USD")
 	rootCmd.PersistentFlags().StringVar(&stripePriceIDEUR, "stripe-price-id-eur", getEnvOrDefault("STRIPE_PRICE_ID_EUR", ""), "Stripe price ID for EUR")
 	rootCmd.PersistentFlags().StringVar(&stripePriceIDBRL, "stripe-price-id-brl", getEnvOrDefault("STRIPE_PRICE_ID_BRL", ""), "Stripe price ID for BRL")
+	rootCmd.PersistentFlags().StringVar(&anthropicAPIKey, "anthropic-api-key", getEnvOrDefault("ANTHROPIC_API_KEY", ""), "Anthropic API key for Vision import")
+	rootCmd.PersistentFlags().StringVar(&catalogAPIURL, "catalog-api-url", getEnvOrDefault("CATALOG_API_URL", ""), "Catalog API URL for item lookups")
 }
 
 func getEnvOrDefault(key, defaultValue string) string {
@@ -199,6 +203,20 @@ func GetStripeAllowedPriceIDs() []string {
 	}
 
 	return ids
+}
+
+func GetAnthropicAPIKey() string {
+	if anthropicAPIKey == "" {
+		return os.Getenv("ANTHROPIC_API_KEY")
+	}
+	return anthropicAPIKey
+}
+
+func GetCatalogAPIURL() string {
+	if catalogAPIURL == "" {
+		return os.Getenv("CATALOG_API_URL")
+	}
+	return catalogAPIURL
 }
 
 func PrintSuccess(msg string) {

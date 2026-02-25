@@ -31,6 +31,37 @@ type ListingRepository interface {
 	IncrementViews(ctx context.Context, id string) error
 	CountActive(ctx context.Context) (int, error)
 	CancelOldestActiveListings(ctx context.Context, sellerID string, keepCount int) (int, error)
+	GetActiveListingByStashItemID(ctx context.Context, stashItemID string) (*models.Listing, error)
+}
+
+// StashItemRepository defines the interface for stash item data access
+type StashItemRepository interface {
+	Create(ctx context.Context, item *models.StashItem) error
+	CreateBatch(ctx context.Context, items []*models.StashItem) error
+	GetByID(ctx context.Context, id string) (*models.StashItem, error)
+	GetByIDAndUserID(ctx context.Context, id string, userID string) (*models.StashItem, error)
+	Delete(ctx context.Context, id string) error
+	ListByUserID(ctx context.Context, userID string, filter StashFilter) ([]*models.StashItem, int, error)
+	CountByUserID(ctx context.Context, userID string) (int, error)
+	DecrementQuantity(ctx context.Context, id string, amount int) error
+	IncrementQuantity(ctx context.Context, id string, amount int) error
+	DeleteIfZeroQuantity(ctx context.Context, id string) error
+	GetListedAmountForStashItem(ctx context.Context, stashItemID string) (int, error)
+	FindMatchingForStack(ctx context.Context, userID, name, itemType, category string, catalogItemID *string) (*models.StashItem, error)
+}
+
+// StashFilter represents stash item query parameters
+type StashFilter struct {
+	Query         string
+	Categories    []string
+	Rarities      []string
+	Listed        *bool
+	CatalogItemID string
+	AffixFilters  []AffixFilter
+	SortBy        string
+	SortOrder     string
+	Offset        int
+	Limit         int
 }
 
 // StatsRepository defines the interface for marketplace stats data access

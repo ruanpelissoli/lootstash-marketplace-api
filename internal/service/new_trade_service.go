@@ -29,6 +29,7 @@ type TradeServiceNew struct {
 	profileService      *ProfileService
 	listingService      *ListingService
 	statsService        *StatsService
+	stashService        *StashService
 	redis               *cache.RedisClient
 	invalidator         *cache.Invalidator
 	supabaseURL         string
@@ -69,6 +70,11 @@ func NewTradeServiceNew(
 // SetStatsService sets the stats service for cache refresh on trade events
 func (s *TradeServiceNew) SetStatsService(ss *StatsService) {
 	s.statsService = ss
+}
+
+// SetStashService sets the stash service for inventory tracking on trade completion
+func (s *TradeServiceNew) SetStashService(ss *StashService) {
+	s.stashService = ss
 }
 
 // offeredItemRaw represents the raw offered item from JSON
@@ -246,8 +252,15 @@ func (s *TradeServiceNew) Complete(ctx context.Context, id string, userID string
 	}
 	_ = s.notificationService.NotifyTradeCompleted(ctx, recipientID, trade.ID, listing.Name)
 
-	// Invalidate listing DTO cache (status changed to completed)
+	// Handle stash inventory updates (async)
+	if s.stashService != nil {
+		go s.stashService.HandleTradeCompletion(context.Background(), trade, listing, trade.Offer)
+	}
+
+	// Invalidate listing caches (status changed to completed)
+	_ = s.invalidator.InvalidateListing(ctx, trade.ListingID)
 	_ = s.invalidator.InvalidateListingDTO(ctx, trade.ListingID)
+	_ = s.invalidator.InvalidateFilterResults(ctx)
 
 	// Remove from the appropriate recent cache
 	s.listingService.RemoveFromRecentByListing(ctx, listing)
@@ -313,8 +326,10 @@ func (s *TradeServiceNew) Cancel(ctx context.Context, id string, userID string, 
 	}
 	_ = s.notificationService.NotifyTradeCancelled(ctx, recipientID, trade.ID, listing.Name)
 
-	// Invalidate listing DTO cache (status may have changed back to active)
+	// Invalidate listing caches (status may have changed back to active)
+	_ = s.invalidator.InvalidateListing(ctx, trade.ListingID)
 	_ = s.invalidator.InvalidateListingDTO(ctx, trade.ListingID)
+	_ = s.invalidator.InvalidateFilterResults(ctx)
 
 	// Refresh home stats (activeListings may have changed)
 	if s.statsService != nil {

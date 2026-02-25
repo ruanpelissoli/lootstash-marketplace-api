@@ -420,3 +420,17 @@ func (r *listingRepository) CancelOldestActiveListings(ctx context.Context, sell
 	rowsAffected, _ := res.RowsAffected()
 	return int(rowsAffected), nil
 }
+
+func (r *listingRepository) GetActiveListingByStashItemID(ctx context.Context, stashItemID string) (*models.Listing, error) {
+	listing := new(models.Listing)
+	err := r.db.DB().NewSelect().
+		Model(listing).
+		Where("l.stash_item_id = ?", stashItemID).
+		Where("l.status IN ('active', 'pending')").
+		Limit(1).
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return listing, nil
+}

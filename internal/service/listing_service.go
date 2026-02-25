@@ -33,6 +33,7 @@ const (
 // ListingService handles listing business logic
 type ListingService struct {
 	repo            repository.ListingRepository
+	stashRepo       repository.StashItemRepository
 	profileService  *ProfileService
 	redis           *cache.RedisClient
 	invalidator     *cache.Invalidator
@@ -58,6 +59,11 @@ func (s *ListingService) SetWishlistService(ws *WishlistService) {
 // SetStatsService sets the stats service for cache refresh on listing events
 func (s *ListingService) SetStatsService(ss *StatsService) {
 	s.statsService = ss
+}
+
+// SetStashRepository sets the stash repo so listings auto-create stash items
+func (s *ListingService) SetStashRepository(sr repository.StashItemRepository) {
+	s.stashRepo = sr
 }
 
 // ErrListingLimitReached indicates a free user has reached their active listing limit
@@ -152,6 +158,50 @@ func (s *ListingService) Create(ctx context.Context, sellerID string, req *dto.C
 	}
 	if req.Amount != nil {
 		listing.Amount = *req.Amount
+	}
+
+	// If listing is created from a stash item, link it directly (skip auto-creation)
+	if req.StashItemID != "" {
+		listing.StashItemID = &req.StashItemID
+		_ = s.invalidator.InvalidateStashList(ctx, sellerID)
+	}
+
+	// Auto-create stash item if not already linked (direct listing flow)
+	if s.stashRepo != nil && listing.StashItemID == nil {
+		stashItem := &models.StashItem{
+			ID:            uuid.New().String(),
+			UserID:        sellerID,
+			ItemType:      listing.ItemType,
+			Rarity:        listing.Rarity,
+			Category:      listing.Category,
+			Stats:         listing.Stats,
+			Suffixes:      listing.Suffixes,
+			Runes:         listing.Runes,
+			RuneOrder:     listing.RuneOrder,
+			BaseItemCode:  listing.BaseItemCode,
+			BaseItemName:  listing.BaseItemName,
+			CatalogItemID: listing.CatalogItemID,
+			ImageURL:      listing.ImageURL,
+			Quantity:      listing.Amount,
+			Game:          listing.Game,
+			Ladder:        listing.Ladder,
+			Hardcore:      listing.Hardcore,
+			Platforms:     listing.Platforms,
+			Region:        listing.Region,
+			Source:        "listing",
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
+		}
+		name := listing.Name
+		stashItem.Name = &name
+
+		if err := s.stashRepo.Create(ctx, stashItem); err != nil {
+			log.Error("failed to auto-create stash item for listing", "error", err.Error(), "listing_id", listing.ID)
+			// Non-fatal: proceed with listing creation even if stash fails
+		} else {
+			listing.StashItemID = &stashItem.ID
+			_ = s.invalidator.InvalidateStashList(ctx, sellerID)
+		}
 	}
 
 	if err := s.repo.Create(ctx, listing); err != nil {
@@ -365,6 +415,11 @@ func (s *ListingService) Delete(ctx context.Context, id string, userID string) e
 	_ = s.invalidator.InvalidateListing(ctx, id)
 	_ = s.invalidator.InvalidateListingDTO(ctx, id)
 	_ = s.invalidator.InvalidateFilterResults(ctx)
+
+	// Invalidate stash list cache if listing was linked to a stash item (isListed changes)
+	if listing.StashItemID != nil {
+		_ = s.invalidator.InvalidateStashList(ctx, listing.SellerID)
+	}
 
 	// Remove from recent cache
 	s.removeFromRecentListings(ctx, listing.ID)
@@ -642,7 +697,7 @@ func (s *ListingService) doTransformStats(rawStats json.RawMessage, variableOnly
 
 	result := make([]dto.ItemStat, 0, len(stats))
 	for _, stat := range stats {
-		if variableOnly && !stat.IsVariable {
+		if variableOnly && !stat.IsVariable && stat.Code != "ethereal" {
 			continue
 		}
 		numericValue := extractNumericValue(stat.Value)

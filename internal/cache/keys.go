@@ -19,6 +19,8 @@ const (
 	prefixServiceDTO         = "service:dto"
 	prefixServiceProviders   = "service:providers"
 	prefixFilterResults      = "filter:results"
+	prefixStash              = "stash"
+	prefixStashList          = "stash:list"
 )
 
 // Profile cache keys
@@ -115,4 +117,19 @@ func FilterResultsKey(hash string) string {
 // FilterResultsPattern returns the pattern for all filter result keys
 func FilterResultsPattern() string {
 	return fmt.Sprintf("%s:*", prefixFilterResults)
+}
+
+// StashItemKey returns the cache key for a stash item
+func StashItemKey(id string) string {
+	return fmt.Sprintf("%s:%s", prefixStash, id)
+}
+
+// StashFilterResultsKey returns the cache key for a user's filtered stash results
+func StashFilterResultsKey(userID string, hash string) string {
+	return fmt.Sprintf("%s:%s:%s", prefixStashList, userID, hash)
+}
+
+// StashListPattern returns the pattern for all stash list keys for a user
+func StashListPattern(userID string) string {
+	return fmt.Sprintf("%s:%s:*", prefixStashList, userID)
 }

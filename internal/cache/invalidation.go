@@ -102,3 +102,19 @@ func (i *Invalidator) InvalidateFilterResults(ctx context.Context) error {
 	}
 	return i.redis.DeleteByPattern(ctx, FilterResultsPattern())
 }
+
+// InvalidateStashItem removes a specific stash item from cache
+func (i *Invalidator) InvalidateStashItem(ctx context.Context, id string) error {
+	if i == nil || i.redis == nil {
+		return nil
+	}
+	return i.redis.Del(ctx, StashItemKey(id))
+}
+
+// InvalidateStashList removes all cached stash list results for a user
+func (i *Invalidator) InvalidateStashList(ctx context.Context, userID string) error {
+	if i == nil || i.redis == nil {
+		return nil
+	}
+	return i.redis.DeleteByPattern(ctx, StashListPattern(userID))
+}

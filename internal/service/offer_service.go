@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,6 +28,7 @@ type OfferService struct {
 	listingService      *ListingService
 	serviceService      *ServiceService
 	statsService        *StatsService
+	stashRepo           repository.StashItemRepository
 	redis               *cache.RedisClient
 	invalidator         *cache.Invalidator
 }
@@ -65,6 +68,11 @@ func NewOfferService(
 // SetStatsService sets the stats service for cache refresh on offer events
 func (s *OfferService) SetStatsService(ss *StatsService) {
 	s.statsService = ss
+}
+
+// SetStashRepository sets the stash repository for offer stash item validation
+func (s *OfferService) SetStashRepository(sr repository.StashItemRepository) {
+	s.stashRepo = sr
 }
 
 // Create creates a new offer (item or service)
@@ -132,6 +140,13 @@ func (s *OfferService) Create(ctx context.Context, requesterID string, req *dto.
 		}
 
 		offer.ListingID = req.ListingID
+	}
+
+	// Validate stash item references in offered items
+	if s.stashRepo != nil && len(req.OfferedItems) > 0 {
+		if err := s.validateOfferedItemStashRefs(ctx, requesterID, req.OfferedItems); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.repo.Create(ctx, offer); err != nil {
@@ -453,4 +468,46 @@ func (s *OfferService) getOfferItemName(offer *models.Offer) string {
 		return offer.Service.Name
 	}
 	return "item"
+}
+
+// offeredItemRef represents an offered item with optional stash reference
+type offeredItemRef struct {
+	StashItemID string `json:"stashItemId,omitempty"`
+	Quantity    int    `json:"quantity"`
+}
+
+// validateOfferedItemStashRefs validates that offered items with stashItemId belong to the requester
+// and have sufficient available quantity
+func (s *OfferService) validateOfferedItemStashRefs(ctx context.Context, requesterID string, offeredItems json.RawMessage) error {
+	var items []offeredItemRef
+	if err := json.Unmarshal(offeredItems, &items); err != nil {
+		return nil // Not parseable, skip validation
+	}
+
+	for _, item := range items {
+		if item.StashItemID == "" {
+			continue
+		}
+
+		stashItem, err := s.stashRepo.GetByIDAndUserID(ctx, item.StashItemID, requesterID)
+		if err != nil {
+			return fmt.Errorf("stash item %s not found or not owned by you", item.StashItemID)
+		}
+
+		listedAmount, err := s.stashRepo.GetListedAmountForStashItem(ctx, stashItem.ID)
+		if err != nil {
+			return err
+		}
+
+		qty := item.Quantity
+		if qty <= 0 {
+			qty = 1
+		}
+		available := stashItem.Quantity - listedAmount
+		if qty > available {
+			return fmt.Errorf("insufficient quantity for stash item %s: available %d, requested %d", stashItem.ID, available, qty)
+		}
+	}
+
+	return nil
 }

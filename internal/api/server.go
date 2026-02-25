@@ -22,11 +22,12 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	app     *fiber.App
-	db      *database.BunDB
-	redis   *cache.RedisClient
-	storage storage.Storage
-	config  *Config
+	app          *fiber.App
+	db           *database.BunDB
+	redis        *cache.RedisClient
+	storage      storage.Storage
+	stashStorage storage.Storage
+	config       *Config
 }
 
 // Config holds server configuration
@@ -52,6 +53,10 @@ type Config struct {
 	StripeSuccessURL      string
 	StripeCancelURL       string
 	StripeAllowedPriceIDs []string
+	// Anthropic API key for Vision import
+	AnthropicAPIKey string
+	// Catalog API URL for item lookups
+	CatalogAPIURL string
 }
 
 // DefaultConfig returns default server configuration
@@ -65,7 +70,7 @@ func DefaultConfig() *Config {
 }
 
 // NewServer creates a new HTTP server
-func NewServer(db *database.BunDB, redis *cache.RedisClient, stor storage.Storage, config *Config) *Server {
+func NewServer(db *database.BunDB, redis *cache.RedisClient, stor storage.Storage, stashStor storage.Storage, config *Config) *Server {
 	if config == nil {
 		config = DefaultConfig()
 	}
@@ -77,11 +82,12 @@ func NewServer(db *database.BunDB, redis *cache.RedisClient, stor storage.Storag
 	})
 
 	server := &Server{
-		app:     app,
-		db:      db,
-		redis:   redis,
-		storage: stor,
-		config:  config,
+		app:          app,
+		db:           db,
+		redis:        redis,
+		storage:      stor,
+		stashStorage: stashStor,
+		config:       config,
 	}
 
 	server.setupMiddleware()
@@ -206,6 +212,14 @@ func (s *Server) setupRoutes() {
 	bugReportService := service.NewBugReportService(bugReportRepo)
 	deviceTokenService := service.NewDeviceTokenService(deviceTokenRepo)
 
+	// Create stash service
+	stashItemRepo := repository.NewStashItemRepository(s.db)
+	listingService.SetStashRepository(stashItemRepo)
+	stashService := service.NewStashService(stashItemRepo, listingRepo, profileService, s.redis, s.stashStorage, s.config.AnthropicAPIKey, s.config.CatalogAPIURL)
+	stashService.SetListingService(listingService)
+	tradeService.SetStashService(stashService)
+	offerService.SetStashRepository(stashItemRepo)
+
 	// Create handlers
 	profileHandler := v1.NewProfileHandler(profileService)
 	listingHandler := v1.NewListingHandler(listingService)
@@ -224,6 +238,7 @@ func (s *Server) setupRoutes() {
 	serviceHandler := v1.NewServiceHandler(serviceService)
 	serviceRunHandler := v1.NewServiceRunHandler(serviceRunService)
 	deviceTokenHandler := v1.NewDeviceTokenHandler(deviceTokenService)
+	stashHandler := v1.NewStashHandler(stashService)
 
 	// Auth middleware config
 	authConfig := middleware.AuthConfig{
@@ -378,6 +393,18 @@ func (s *Server) setupRoutes() {
 	authenticated.Post("/wishlist", wishlistHandler.Create)
 	authenticated.Patch("/wishlist/:id", wishlistHandler.Update)
 	authenticated.Delete("/wishlist/:id", wishlistHandler.Delete)
+
+	// Stash routes (static paths before parameterized to avoid conflicts)
+	authenticated.Get("/stash", stashHandler.List)
+	authenticated.Post("/stash/search", stashHandler.Search)
+	authenticated.Post("/stash", stashHandler.Create)
+	authenticated.Post("/stash/import/preview", stashHandler.BulkImportPreview)
+	authenticated.Post("/stash/import/confirm", stashHandler.BulkImportConfirm)
+	authenticated.Post("/stash/list", stashHandler.CreateListing)
+	authenticated.Get("/stash/:id", stashHandler.GetByID)
+	authenticated.Delete("/stash/:id", stashHandler.Delete)
+	authenticated.Post("/stash/:id/unlist", stashHandler.Unlist)
+	authenticated.Post("/stash/:id/quantity", stashHandler.AdjustQuantity)
 
 	// Bug reports - any authenticated user can submit
 	authenticated.Post("/bug-reports", bugReportHandler.Create)

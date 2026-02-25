@@ -350,3 +350,69 @@ func withServiceRunStatus(status string) func(*models.ServiceRun) {
 		}
 	}
 }
+
+// Test constants for stash
+const (
+	testStashItemID  = "stash-kkk"
+	testStashItemID2 = "stash-lll"
+)
+
+// testStashItem creates a test stash item with sensible defaults.
+func testStashItem(id string, userID string, opts ...func(*models.StashItem)) *models.StashItem {
+	si := &models.StashItem{
+		ID:        id,
+		UserID:    userID,
+		ItemType:  "Shako",
+		Rarity:    "unique",
+		Category:  "helms",
+		Quantity:  1,
+		Game:      "diablo2",
+		Ladder:    true,
+		Hardcore:  false,
+		Platforms: []string{"pc"},
+		Region:    "americas",
+		Source:    "manual",
+		CreatedAt: time.Now().Add(-24 * time.Hour),
+		UpdatedAt: time.Now(),
+	}
+	for _, opt := range opts {
+		opt(si)
+	}
+	return si
+}
+
+func withStashName(name string) func(*models.StashItem) {
+	return func(si *models.StashItem) { si.Name = &name }
+}
+
+func withStashCategory(cat string) func(*models.StashItem) {
+	return func(si *models.StashItem) { si.Category = cat }
+}
+
+func withStashQuantity(qty int) func(*models.StashItem) {
+	return func(si *models.StashItem) { si.Quantity = qty }
+}
+
+func withStashSource(src string) func(*models.StashItem) {
+	return func(si *models.StashItem) { si.Source = src }
+}
+
+func withStashItemType(itemType string) func(*models.StashItem) {
+	return func(si *models.StashItem) { si.ItemType = itemType }
+}
+
+func withStashStashItemID(stashItemID *string) func(*models.Listing) {
+	return func(l *models.Listing) { l.StashItemID = stashItemID }
+}
+
+func withListingAmount(amount int) func(*models.Listing) {
+	return func(l *models.Listing) { l.Amount = amount }
+}
+
+func withAskingPrice(price string) func(*models.Listing) {
+	return func(l *models.Listing) { l.AskingPrice = &price }
+}
+
+func withAskingFor(askingFor json.RawMessage) func(*models.Listing) {
+	return func(l *models.Listing) { l.AskingFor = askingFor }
+}
