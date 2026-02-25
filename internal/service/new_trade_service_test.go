@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/models"
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/repository/mocks"
@@ -24,6 +25,7 @@ type tradeTestHarness struct {
 	transactionRepo *mocks.MockTransactionRepository
 	ratingRepo      *mocks.MockRatingRepository
 	chatRepo        *mocks.MockChatRepository
+	messageRepo     *mocks.MockMessageRepository
 	notifRepo       *mocks.MockNotificationRepository
 	notifService    *NotificationService
 	profileRepo     *mocks.MockProfileRepository
@@ -39,6 +41,7 @@ func newTradeTestHarness() *tradeTestHarness {
 	transactionRepo := new(mocks.MockTransactionRepository)
 	ratingRepo := new(mocks.MockRatingRepository)
 	chatRepo := new(mocks.MockChatRepository)
+	messageRepo := new(mocks.MockMessageRepository)
 	notifRepo := new(mocks.MockNotificationRepository)
 	notifService := NewNotificationService(notifRepo, nil)
 	profileRepo := new(mocks.MockProfileRepository)
@@ -48,7 +51,7 @@ func newTradeTestHarness() *tradeTestHarness {
 
 	svc := NewTradeServiceNew(
 		nil, tradeRepo, listingRepo, offerRepo,
-		transactionRepo, ratingRepo, chatRepo,
+		transactionRepo, ratingRepo, chatRepo, messageRepo,
 		notifService, profileService, listingService,
 		nil, testSupabaseURL,
 	)
@@ -61,6 +64,7 @@ func newTradeTestHarness() *tradeTestHarness {
 		transactionRepo: transactionRepo,
 		ratingRepo:      ratingRepo,
 		chatRepo:        chatRepo,
+		messageRepo:     messageRepo,
 		notifRepo:       notifRepo,
 		notifService:    notifService,
 		profileRepo:     profileRepo,
@@ -127,10 +131,38 @@ func TestTradeGetByID_NonParticipant(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Complete
+// Complete (dual-acknowledgment)
 // ---------------------------------------------------------------------------
 
-func TestTradeComplete_Success(t *testing.T) {
+func TestTradeComplete_SellerConfirmsFirst_PartialConfirmation(t *testing.T) {
+	h := newTradeTestHarness()
+	ctx := context.Background()
+
+	chat := testChat(testChatID, nil, nil)
+	trade := testTrade(testTradeID, testOfferID, testListingID, testSellerID, testBuyerID,
+		withTradeChat(chat),
+	)
+
+	h.tradeRepo.On("GetByIDWithRelations", ctx, testTradeID).Return(trade, nil)
+	h.tradeRepo.On("Update", ctx, mock.AnythingOfType("*models.Trade")).Return(nil)
+	h.messageRepo.On("Create", ctx, mock.AnythingOfType("*models.Message")).Return(nil)
+	h.notifRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.Notification")).Return(nil)
+
+	resultTrade, resultTx, err := h.svc.Complete(ctx, testTradeID, testSellerID)
+
+	require.NoError(t, err)
+	assert.Equal(t, "active", resultTrade.Status, "trade should remain active after one confirmation")
+	assert.NotNil(t, resultTrade.SellerConfirmedAt, "seller should be confirmed")
+	assert.Nil(t, resultTrade.BuyerConfirmedAt, "buyer should NOT be confirmed yet")
+	assert.Nil(t, resultTx, "no transaction until both confirm")
+
+	h.tradeRepo.AssertExpectations(t)
+	h.messageRepo.AssertExpectations(t)
+	// Should NOT have created a transaction
+	h.transactionRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+}
+
+func TestTradeComplete_BothConfirm_FullCompletion(t *testing.T) {
 	h := newTradeTestHarness()
 	ctx := context.Background()
 
@@ -139,33 +171,60 @@ func TestTradeComplete_Success(t *testing.T) {
 	offer := testOffer(testOfferID, testBuyerID, &listing.ID, withOfferStatus("accepted"))
 	offer.OfferedItems = offeredItems
 
+	// Seller already confirmed
+	sellerConfirmedAt := time.Now().Add(-5 * time.Minute)
+	chat := testChat(testChatID, nil, nil)
 	trade := testTrade(testTradeID, testOfferID, testListingID, testSellerID, testBuyerID,
 		withTradeOffer(offer),
 		withTradeListing(listing),
+		withTradeChat(chat),
+		func(t *models.Trade) { t.SellerConfirmedAt = &sellerConfirmedAt },
 	)
 
 	h.tradeRepo.On("GetByIDWithRelations", ctx, testTradeID).Return(trade, nil)
 	h.tradeRepo.On("Update", ctx, mock.AnythingOfType("*models.Trade")).Return(nil)
+	h.messageRepo.On("Create", ctx, mock.AnythingOfType("*models.Message")).Return(nil)
 	h.offerRepo.On("Update", ctx, mock.AnythingOfType("*models.Offer")).Return(nil)
 	h.listingRepo.On("GetByID", ctx, testListingID).Return(listing, nil)
 	h.listingRepo.On("Update", ctx, mock.AnythingOfType("*models.Listing")).Return(nil)
 	h.transactionRepo.On("Create", ctx, mock.AnythingOfType("*models.Transaction")).Return(nil)
 	h.notifRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.Notification")).Return(nil)
 
-	resultTrade, resultTx, err := h.svc.Complete(ctx, testTradeID, testSellerID)
+	// Buyer confirms => both confirmed => finalize
+	resultTrade, resultTx, err := h.svc.Complete(ctx, testTradeID, testBuyerID)
 
 	require.NoError(t, err)
 	assert.Equal(t, "completed", resultTrade.Status)
 	assert.NotNil(t, resultTrade.CompletedAt)
+	assert.NotNil(t, resultTrade.SellerConfirmedAt)
+	assert.NotNil(t, resultTrade.BuyerConfirmedAt)
 	assert.NotNil(t, resultTx)
 	assert.Equal(t, listing.Name, resultTx.ItemName)
-	assert.Equal(t, testSellerID, resultTx.SellerID)
-	assert.Equal(t, testBuyerID, resultTx.BuyerID)
 
 	h.tradeRepo.AssertExpectations(t)
+	h.transactionRepo.AssertExpectations(t)
 	h.offerRepo.AssertExpectations(t)
 	h.listingRepo.AssertExpectations(t)
-	h.transactionRepo.AssertExpectations(t)
+}
+
+func TestTradeComplete_AlreadyConfirmed_ReturnsError(t *testing.T) {
+	h := newTradeTestHarness()
+	ctx := context.Background()
+
+	// Seller already confirmed
+	sellerConfirmedAt := time.Now().Add(-5 * time.Minute)
+	trade := testTrade(testTradeID, testOfferID, testListingID, testSellerID, testBuyerID,
+		func(t *models.Trade) { t.SellerConfirmedAt = &sellerConfirmedAt },
+	)
+
+	h.tradeRepo.On("GetByIDWithRelations", ctx, testTradeID).Return(trade, nil)
+
+	resultTrade, resultTx, err := h.svc.Complete(ctx, testTradeID, testSellerID)
+
+	assert.Nil(t, resultTrade)
+	assert.Nil(t, resultTx)
+	assert.ErrorIs(t, err, ErrAlreadyConfirmed)
+	h.tradeRepo.AssertExpectations(t)
 }
 
 func TestTradeComplete_Idempotent(t *testing.T) {
@@ -228,34 +287,31 @@ func TestTradeComplete_NotParticipant(t *testing.T) {
 	h.tradeRepo.AssertExpectations(t)
 }
 
-func TestTradeComplete_SellerCompletes_NotifiesBuyer(t *testing.T) {
+func TestTradeComplete_SellerConfirms_NotifiesBuyer(t *testing.T) {
 	h := newTradeTestHarness()
 	ctx := context.Background()
 
-	offeredItems := makeOfferedItemsJSON()
-	listing := testListing(testListingID, testSellerID)
-	offer := testOffer(testOfferID, testBuyerID, &listing.ID, withOfferStatus("accepted"))
-	offer.OfferedItems = offeredItems
+	sellerName := "SellerDude"
+	seller := testProfile(testSellerID)
+	seller.DisplayName = &sellerName
 
+	chat := testChat(testChatID, nil, nil)
 	trade := testTrade(testTradeID, testOfferID, testListingID, testSellerID, testBuyerID,
-		withTradeOffer(offer),
-		withTradeListing(listing),
+		withTradeSeller(seller),
+		withTradeChat(chat),
 	)
 
 	h.tradeRepo.On("GetByIDWithRelations", ctx, testTradeID).Return(trade, nil)
 	h.tradeRepo.On("Update", ctx, mock.AnythingOfType("*models.Trade")).Return(nil)
-	h.offerRepo.On("Update", ctx, mock.AnythingOfType("*models.Offer")).Return(nil)
-	h.listingRepo.On("GetByID", ctx, testListingID).Return(listing, nil)
-	h.listingRepo.On("Update", ctx, mock.AnythingOfType("*models.Listing")).Return(nil)
-	h.transactionRepo.On("Create", ctx, mock.AnythingOfType("*models.Transaction")).Return(nil)
+	h.messageRepo.On("Create", ctx, mock.AnythingOfType("*models.Message")).Return(nil)
 
 	// Capture the notification to verify recipient
 	h.notifRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.Notification")).
 		Run(func(args mock.Arguments) {
 			notif := args.Get(1).(*models.Notification)
-			// Seller completes => buyer gets notified
+			// Seller confirms => buyer gets notified to confirm
 			assert.Equal(t, testBuyerID, notif.UserID)
-			assert.Equal(t, "Trade Completed", notif.Title)
+			assert.Equal(t, "Trade Confirmation", notif.Title)
 		}).
 		Return(nil)
 
@@ -265,41 +321,34 @@ func TestTradeComplete_SellerCompletes_NotifiesBuyer(t *testing.T) {
 	h.notifRepo.AssertExpectations(t)
 }
 
-func TestTradeComplete_BuyerCompletes_NotifiesSeller(t *testing.T) {
+func TestTradeComplete_PostsSystemChatMessage(t *testing.T) {
 	h := newTradeTestHarness()
 	ctx := context.Background()
 
-	offeredItems := makeOfferedItemsJSON()
-	listing := testListing(testListingID, testSellerID)
-	offer := testOffer(testOfferID, testBuyerID, &listing.ID, withOfferStatus("accepted"))
-	offer.OfferedItems = offeredItems
-
+	chat := testChat(testChatID, nil, nil)
 	trade := testTrade(testTradeID, testOfferID, testListingID, testSellerID, testBuyerID,
-		withTradeOffer(offer),
-		withTradeListing(listing),
+		withTradeChat(chat),
 	)
 
 	h.tradeRepo.On("GetByIDWithRelations", ctx, testTradeID).Return(trade, nil)
 	h.tradeRepo.On("Update", ctx, mock.AnythingOfType("*models.Trade")).Return(nil)
-	h.offerRepo.On("Update", ctx, mock.AnythingOfType("*models.Offer")).Return(nil)
-	h.listingRepo.On("GetByID", ctx, testListingID).Return(listing, nil)
-	h.listingRepo.On("Update", ctx, mock.AnythingOfType("*models.Listing")).Return(nil)
-	h.transactionRepo.On("Create", ctx, mock.AnythingOfType("*models.Transaction")).Return(nil)
+	h.notifRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.Notification")).Return(nil)
 
-	// Capture the notification to verify recipient
-	h.notifRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.Notification")).
+	// Capture the system message
+	h.messageRepo.On("Create", ctx, mock.AnythingOfType("*models.Message")).
 		Run(func(args mock.Arguments) {
-			notif := args.Get(1).(*models.Notification)
-			// Buyer completes => seller gets notified
-			assert.Equal(t, testSellerID, notif.UserID)
-			assert.Equal(t, "Trade Completed", notif.Title)
+			msg := args.Get(1).(*models.Message)
+			assert.Equal(t, testChatID, msg.ChatID)
+			assert.Equal(t, "trade_update", msg.MessageType)
+			assert.Contains(t, msg.Content, "Seller has confirmed")
+			assert.Contains(t, msg.Content, "Waiting for buyer")
 		}).
 		Return(nil)
 
-	_, _, err := h.svc.Complete(ctx, testTradeID, testBuyerID)
+	_, _, err := h.svc.Complete(ctx, testTradeID, testSellerID)
 
 	require.NoError(t, err)
-	h.notifRepo.AssertExpectations(t)
+	h.messageRepo.AssertExpectations(t)
 }
 
 // ---------------------------------------------------------------------------
@@ -471,7 +520,7 @@ func TestGenerateItemImageURL_NormalizesSpecialChars(t *testing.T) {
 
 func TestGenerateItemImageURL_EmptySupabaseURL(t *testing.T) {
 	svc := NewTradeServiceNew(
-		nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil,
 		nil, nil, nil, nil, "",
 	)
 
@@ -590,4 +639,24 @@ func TestTradeToDetailResponse_CompletedTrade(t *testing.T) {
 
 	h.transactionRepo.AssertExpectations(t)
 	h.ratingRepo.AssertExpectations(t)
+}
+
+func TestTradeToDetailResponse_SellerAlreadyConfirmed(t *testing.T) {
+	h := newTradeTestHarness()
+	ctx := context.Background()
+
+	sellerConfirmedAt := time.Now().Add(-5 * time.Minute)
+	trade := testTrade(testTradeID, testOfferID, testListingID, testSellerID, testBuyerID,
+		func(t *models.Trade) { t.SellerConfirmedAt = &sellerConfirmedAt },
+	)
+
+	detail := h.svc.ToDetailResponse(ctx, trade, testSellerID)
+
+	assert.Equal(t, "active", detail.Status)
+	assert.False(t, detail.CanComplete, "seller already confirmed, cannot complete again")
+	assert.True(t, detail.CanCancel, "can still cancel an active trade")
+
+	// But the buyer should still be able to complete
+	detailBuyer := h.svc.ToDetailResponse(ctx, trade, testBuyerID)
+	assert.True(t, detailBuyer.CanComplete, "buyer has not confirmed yet, should be able to complete")
 }
