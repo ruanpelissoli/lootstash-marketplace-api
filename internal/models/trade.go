@@ -20,8 +20,10 @@ type Trade struct {
 	CancelledBy  *string    `bun:"cancelled_by,type:uuid"`
 	CreatedAt    time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt    time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	CompletedAt  *time.Time `bun:"completed_at"`
-	CancelledAt  *time.Time `bun:"cancelled_at"`
+	CompletedAt       *time.Time `bun:"completed_at"`
+	CancelledAt       *time.Time `bun:"cancelled_at"`
+	SellerConfirmedAt *time.Time `bun:"seller_confirmed_at"`
+	BuyerConfirmedAt  *time.Time `bun:"buyer_confirmed_at"`
 
 	// Relations
 	Offer   *Offer   `bun:"rel:belongs-to,join:offer_id=id"`
@@ -60,4 +62,19 @@ func (t *Trade) GetCancelledBy() string {
 		return *t.CancelledBy
 	}
 	return ""
+}
+
+// IsSellerConfirmed returns true if the seller has confirmed the trade
+func (t *Trade) IsSellerConfirmed() bool {
+	return t.SellerConfirmedAt != nil
+}
+
+// IsBuyerConfirmed returns true if the buyer has confirmed the trade
+func (t *Trade) IsBuyerConfirmed() bool {
+	return t.BuyerConfirmedAt != nil
+}
+
+// BothConfirmed returns true if both parties have confirmed the trade
+func (t *Trade) BothConfirmed() bool {
+	return t.IsSellerConfirmed() && t.IsBuyerConfirmed()
 }

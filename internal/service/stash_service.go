@@ -514,13 +514,14 @@ func (s *StashService) CreateListingFromStash(ctx context.Context, userID string
 
 // BulkImportPreview parses screenshots and returns preview data without saving to DB
 func (s *StashService) BulkImportPreview(ctx context.Context, userID string, files []*multipart.FileHeader, game string, ladder, hardcore bool, region string, platforms []string) (*dto.BulkImportPreviewResponse, error) {
-	profile, err := s.profileService.GetByID(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	if !profile.IsPremium {
-		return nil, ErrPremiumRequired
-	}
+	// TODO: Re-enable premium gate when ready
+	// profile, err := s.profileService.GetByID(ctx, userID)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// if !profile.IsPremium {
+	// 	return nil, ErrPremiumRequired
+	// }
 
 	if s.visionClient == nil || !s.visionClient.IsConfigured() {
 		return nil, ErrVisionNotConfigured
@@ -1043,13 +1044,14 @@ func markAllStatsVariable(stats json.RawMessage) json.RawMessage {
 
 // BulkImportConfirm saves reviewed/corrected items to the database
 func (s *StashService) BulkImportConfirm(ctx context.Context, userID string, items []dto.CreateStashItemRequest) ([]*models.StashItem, error) {
-	profile, err := s.profileService.GetByID(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	if !profile.IsPremium {
-		return nil, ErrPremiumRequired
-	}
+	// TODO: Re-enable premium gate when ready
+	// profile, err := s.profileService.GetByID(ctx, userID)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// if !profile.IsPremium {
+	// 	return nil, ErrPremiumRequired
+	// }
 
 	log := logger.FromContext(ctx)
 

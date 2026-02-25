@@ -158,6 +158,20 @@ func (s *NotificationService) NotifyTradeCompleted(ctx context.Context, userID s
 	return s.Create(ctx, notification)
 }
 
+// NotifyTradeCompletionConfirmed notifies the other party that one side has confirmed the trade
+func (s *NotificationService) NotifyTradeCompletionConfirmed(ctx context.Context, userID string, tradeID string, confirmerName string) error {
+	refType := "trade"
+	notification := &models.Notification{
+		UserID:        userID,
+		Type:          models.NotificationTypeTradeRequestAccepted,
+		Title:         "Trade Confirmation",
+		Body:          strPtr(fmt.Sprintf("%s has confirmed the trade is complete. Please confirm on your end.", confirmerName)),
+		ReferenceType: &refType,
+		ReferenceID:   &tradeID,
+	}
+	return s.Create(ctx, notification)
+}
+
 // NotifyTradeCancelled notifies a user the trade was cancelled
 func (s *NotificationService) NotifyTradeCancelled(ctx context.Context, userID string, tradeID string, itemName string) error {
 	refType := "trade"

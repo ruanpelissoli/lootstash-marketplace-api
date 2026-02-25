@@ -25,15 +25,17 @@ type TradeResponse struct {
 	Buyer         *ProfileResponse      `json:"buyer,omitempty"`
 	OfferedItems  []OfferedItemResponse `json:"offeredItems,omitempty"`
 	Status        string                `json:"status"`
-	CancelReason  string           `json:"cancelReason,omitempty"`
-	CancelledBy   string           `json:"cancelledBy,omitempty"`
-	ChatID        *string          `json:"chatId,omitempty"`
-	TransactionID *string          `json:"transactionId,omitempty"`
-	CanRate       bool             `json:"canRate"`
-	CreatedAt     time.Time        `json:"createdAt"`
-	UpdatedAt     time.Time        `json:"updatedAt"`
-	CompletedAt   *time.Time       `json:"completedAt,omitempty"`
-	CancelledAt   *time.Time       `json:"cancelledAt,omitempty"`
+	CancelReason      string           `json:"cancelReason,omitempty"`
+	CancelledBy       string           `json:"cancelledBy,omitempty"`
+	ChatID            *string          `json:"chatId,omitempty"`
+	TransactionID     *string          `json:"transactionId,omitempty"`
+	CanRate           bool             `json:"canRate"`
+	CreatedAt         time.Time        `json:"createdAt"`
+	UpdatedAt         time.Time        `json:"updatedAt"`
+	CompletedAt       *time.Time       `json:"completedAt,omitempty"`
+	CancelledAt       *time.Time       `json:"cancelledAt,omitempty"`
+	SellerConfirmedAt *time.Time       `json:"sellerConfirmedAt,omitempty"`
+	BuyerConfirmedAt  *time.Time       `json:"buyerConfirmedAt,omitempty"`
 }
 
 // TradeDetailResponse includes additional details for a single trade
@@ -58,5 +60,6 @@ type CancelTradeRequest struct {
 // CompleteTradeResponse represents the response when completing a trade
 type CompleteTradeResponse struct {
 	Trade         *TradeResponse `json:"trade"`
-	TransactionID string         `json:"transactionId"`
+	TransactionID string         `json:"transactionId,omitempty"`
+	Confirmed     bool           `json:"confirmed"`
 }

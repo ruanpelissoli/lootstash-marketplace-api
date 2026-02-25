@@ -25,6 +25,7 @@ type TradeServiceNew struct {
 	transactionRepo     repository.TransactionRepository
 	ratingRepo          repository.RatingRepository
 	chatRepo            repository.ChatRepository
+	messageRepo         repository.MessageRepository
 	notificationService *NotificationService
 	profileService      *ProfileService
 	listingService      *ListingService
@@ -44,6 +45,7 @@ func NewTradeServiceNew(
 	transactionRepo repository.TransactionRepository,
 	ratingRepo repository.RatingRepository,
 	chatRepo repository.ChatRepository,
+	messageRepo repository.MessageRepository,
 	notificationService *NotificationService,
 	profileService *ProfileService,
 	listingService *ListingService,
@@ -58,6 +60,7 @@ func NewTradeServiceNew(
 		transactionRepo:     transactionRepo,
 		ratingRepo:          ratingRepo,
 		chatRepo:            chatRepo,
+		messageRepo:         messageRepo,
 		notificationService: notificationService,
 		profileService:      profileService,
 		listingService:      listingService,
@@ -174,14 +177,14 @@ func (s *TradeServiceNew) GetByID(ctx context.Context, id string, userID string)
 	return trade, nil
 }
 
-// Complete marks a trade as completed and creates a transaction
+// Complete records the user's confirmation and finalizes the trade when both parties have confirmed
 func (s *TradeServiceNew) Complete(ctx context.Context, id string, userID string) (*models.Trade, *models.Transaction, error) {
 	trade, err := s.repo.GetByIDWithRelations(ctx, id)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Either party can complete
+	// Either party can confirm
 	if trade.SellerID != userID && trade.BuyerID != userID {
 		return nil, nil, ErrForbidden
 	}
@@ -200,6 +203,61 @@ func (s *TradeServiceNew) Complete(ctx context.Context, id string, userID string
 		return nil, nil, ErrInvalidState
 	}
 
+	isSeller := trade.SellerID == userID
+
+	// Check if user already confirmed their side
+	if isSeller && trade.IsSellerConfirmed() {
+		return nil, nil, ErrAlreadyConfirmed
+	}
+	if !isSeller && trade.IsBuyerConfirmed() {
+		return nil, nil, ErrAlreadyConfirmed
+	}
+
+	// Record this user's confirmation
+	now := time.Now()
+	if isSeller {
+		trade.SellerConfirmedAt = &now
+	} else {
+		trade.BuyerConfirmedAt = &now
+	}
+	trade.UpdatedAt = now
+
+	if err := s.repo.Update(ctx, trade); err != nil {
+		return nil, nil, err
+	}
+
+	// Post a system chat message about the confirmation
+	s.postConfirmationMessage(ctx, trade, isSeller)
+
+	// If both confirmed, finalize the trade
+	if trade.BothConfirmed() {
+		return s.finalizeTrade(ctx, trade, userID)
+	}
+
+	// Only one side confirmed — notify the other party
+	var recipientID, confirmerName string
+	if isSeller {
+		recipientID = trade.BuyerID
+		if trade.Seller != nil && trade.Seller.DisplayName != nil {
+			confirmerName = *trade.Seller.DisplayName
+		} else {
+			confirmerName = "The seller"
+		}
+	} else {
+		recipientID = trade.SellerID
+		if trade.Buyer != nil && trade.Buyer.DisplayName != nil {
+			confirmerName = *trade.Buyer.DisplayName
+		} else {
+			confirmerName = "The buyer"
+		}
+	}
+	_ = s.notificationService.NotifyTradeCompletionConfirmed(ctx, recipientID, trade.ID, confirmerName)
+
+	return trade, nil, nil
+}
+
+// finalizeTrade runs the full completion logic once both parties have confirmed
+func (s *TradeServiceNew) finalizeTrade(ctx context.Context, trade *models.Trade, userID string) (*models.Trade, *models.Transaction, error) {
 	now := time.Now()
 	trade.Status = "completed"
 	trade.CompletedAt = &now
@@ -243,14 +301,9 @@ func (s *TradeServiceNew) Complete(ctx context.Context, id string, userID string
 		return nil, nil, err
 	}
 
-	// Notify the other party that trade is completed
-	var recipientID string
-	if trade.SellerID == userID {
-		recipientID = trade.BuyerID
-	} else {
-		recipientID = trade.SellerID
-	}
-	_ = s.notificationService.NotifyTradeCompleted(ctx, recipientID, trade.ID, listing.Name)
+	// Notify both parties that the trade is fully completed
+	_ = s.notificationService.NotifyTradeCompleted(ctx, trade.SellerID, trade.ID, listing.Name)
+	_ = s.notificationService.NotifyTradeCompleted(ctx, trade.BuyerID, trade.ID, listing.Name)
 
 	// Handle stash inventory updates (async)
 	if s.stashService != nil {
@@ -271,6 +324,34 @@ func (s *TradeServiceNew) Complete(ctx context.Context, id string, userID string
 	}
 
 	return trade, transaction, nil
+}
+
+// postConfirmationMessage posts a system chat message about the confirmation
+func (s *TradeServiceNew) postConfirmationMessage(ctx context.Context, trade *models.Trade, isSeller bool) {
+	if trade.Chat == nil {
+		return
+	}
+
+	var role, waitingFor string
+	if isSeller {
+		role = "Seller"
+		waitingFor = "buyer"
+	} else {
+		role = "Buyer"
+		waitingFor = "seller"
+	}
+
+	msg := &models.Message{
+		ID:          uuid.New().String(),
+		ChatID:      trade.Chat.ID,
+		SenderID:    "00000000-0000-0000-0000-000000000000",
+		Content:     fmt.Sprintf("%s has confirmed the trade is complete. Waiting for %s to confirm.", role, waitingFor),
+		MessageType: "trade_update",
+		CreatedAt:   time.Now(),
+		SellerID:    &trade.SellerID,
+		BuyerID:     &trade.BuyerID,
+	}
+	_ = s.messageRepo.Create(ctx, msg)
 }
 
 // Cancel cancels an active trade (either party)
@@ -365,19 +446,21 @@ func (s *TradeServiceNew) ToResponseWithUser(ctx context.Context, trade *models.
 // toResponseInternal is the internal implementation that handles both cases
 func (s *TradeServiceNew) toResponseInternal(trade *models.Trade, ctx *context.Context, userID string) *dto.TradeResponse {
 	resp := &dto.TradeResponse{
-		ID:           trade.ID,
-		OfferID:      trade.OfferID,
-		ListingID:    trade.ListingID,
-		SellerID:     trade.SellerID,
-		BuyerID:      trade.BuyerID,
-		Status:       trade.Status,
-		CancelReason: trade.GetCancelReason(),
-		CancelledBy:  trade.GetCancelledBy(),
-		CreatedAt:    trade.CreatedAt,
-		UpdatedAt:    trade.UpdatedAt,
-		CompletedAt:  trade.CompletedAt,
-		CancelledAt:  trade.CancelledAt,
-		CanRate:      false,
+		ID:                trade.ID,
+		OfferID:           trade.OfferID,
+		ListingID:         trade.ListingID,
+		SellerID:          trade.SellerID,
+		BuyerID:           trade.BuyerID,
+		Status:            trade.Status,
+		CancelReason:      trade.GetCancelReason(),
+		CancelledBy:       trade.GetCancelledBy(),
+		CreatedAt:         trade.CreatedAt,
+		UpdatedAt:         trade.UpdatedAt,
+		CompletedAt:       trade.CompletedAt,
+		CancelledAt:       trade.CancelledAt,
+		SellerConfirmedAt: trade.SellerConfirmedAt,
+		BuyerConfirmedAt:  trade.BuyerConfirmedAt,
+		CanRate:           false,
 	}
 
 	if trade.Listing != nil {
@@ -419,9 +502,13 @@ func (s *TradeServiceNew) toResponseInternal(trade *models.Trade, ctx *context.C
 
 // ToDetailResponse converts a trade model to a detailed DTO response
 func (s *TradeServiceNew) ToDetailResponse(ctx context.Context, trade *models.Trade, userID string) *dto.TradeDetailResponse {
+	isParticipant := trade.SellerID == userID || trade.BuyerID == userID
+	alreadyConfirmed := (trade.SellerID == userID && trade.IsSellerConfirmed()) ||
+		(trade.BuyerID == userID && trade.IsBuyerConfirmed())
+
 	return &dto.TradeDetailResponse{
 		TradeResponse: *s.ToResponseWithUser(ctx, trade, userID),
-		CanComplete:   trade.IsActive() && (trade.SellerID == userID || trade.BuyerID == userID),
+		CanComplete:   trade.IsActive() && isParticipant && !alreadyConfirmed,
 		CanCancel:     trade.IsActive(),
 		CanMessage:    trade.IsActive(),
 	}

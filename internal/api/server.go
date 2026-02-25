@@ -173,6 +173,7 @@ func (s *Server) setupRoutes() {
 		transactionRepo,
 		ratingRepo,
 		chatRepo,
+		messageRepo,
 		notificationService,
 		profileService,
 		listingService,

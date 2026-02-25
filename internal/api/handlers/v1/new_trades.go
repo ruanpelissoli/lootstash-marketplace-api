@@ -125,6 +125,13 @@ func (h *TradeHandlerNew) Complete(c *fiber.Ctx) error {
 				Code:    400,
 			})
 		}
+		if errors.Is(err, service.ErrAlreadyConfirmed) {
+			return c.Status(fiber.StatusConflict).JSON(dto.ErrorResponse{
+				Error:   "already_confirmed",
+				Message: "You have already confirmed this trade",
+				Code:    409,
+			})
+		}
 		logger.FromContext(c.UserContext()).Error("failed to complete trade",
 			"error", err.Error(),
 			"trade_id", id,
@@ -137,10 +144,16 @@ func (h *TradeHandlerNew) Complete(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(dto.CompleteTradeResponse{
-		Trade:         h.service.ToResponse(trade),
-		TransactionID: transaction.ID,
-	})
+	resp := dto.CompleteTradeResponse{
+		Trade: h.service.ToResponse(trade),
+	}
+
+	if transaction != nil {
+		resp.TransactionID = transaction.ID
+		resp.Confirmed = true
+	}
+
+	return c.JSON(resp)
 }
 
 // Cancel handles POST /api/v1/trades/:id/cancel

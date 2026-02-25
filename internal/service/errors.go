@@ -26,4 +26,7 @@ var (
 
 	// ErrRefreshCooldown indicates the listing cannot be refreshed yet
 	ErrRefreshCooldown = errors.New("refresh cooldown not elapsed")
+
+	// ErrAlreadyConfirmed indicates the user already confirmed their side of the trade
+	ErrAlreadyConfirmed = errors.New("already confirmed")
 )
