@@ -23,8 +23,8 @@ type CreateStashItemRequest struct {
 	Game          string          `json:"game" validate:"required,min=1,max=20"`
 	Ladder        bool            `json:"ladder"`
 	Hardcore      bool            `json:"hardcore"`
-	Platforms     []string        `json:"platforms" validate:"required,min=1,dive,oneof=pc xbox playstation switch"`
-	Region        string          `json:"region" validate:"required,oneof=americas europe asia"`
+	Platforms     []string        `json:"platforms,omitempty" validate:"omitempty,dive,oneof=pc xbox playstation switch"`
+	Region        string          `json:"region,omitempty" validate:"omitempty,oneof=americas europe asia"`
 }
 
 // AdjustQuantityRequest represents a request to adjust stash item quantity
