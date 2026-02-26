@@ -48,6 +48,16 @@ func TestExpandStatCode(t *testing.T) {
 			expected: []string{"res-fire", "fire_res"},
 		},
 		{
+			name:     "semantic skill tree code returns itself and old skilltab alias",
+			code:     "sorceress-Fire",
+			expected: []string{"sorceress-Fire", "skilltab-3"},
+		},
+		{
+			name:     "old skilltab alias returns itself and semantic code",
+			code:     "skilltab-3",
+			expected: []string{"skilltab-3", "sorceress-Fire"},
+		},
+		{
 			name:     "unknown code returns itself",
 			code:     "all_skills",
 			expected: []string{"all_skills"},
@@ -122,6 +132,64 @@ func TestNormalizeStatCode(t *testing.T) {
 			got := NormalizeStatCode(tt.code)
 			if got != tt.expected {
 				t.Errorf("NormalizeStatCode(%q) = %q, want %q", tt.code, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestInferSemanticStatCode(t *testing.T) {
+	tests := []struct {
+		name        string
+		code        string
+		displayText string
+		expected    string
+	}{
+		// All 24 skill tabs
+		{"amazon bow and crossbow", "skilltab", "+3 to Bow and Crossbow Skills (Amazon Only)", "amazon-Bow and Crossbow"},
+		{"amazon passive and magic", "skilltab", "+2 to Passive and Magic Skills (Amazon Only)", "amazon-Passive and Magic"},
+		{"amazon javelin and spear", "skilltab", "+3 to Javelin and Spear Skills (Amazon Only)", "amazon-Javelin and Spear"},
+		{"sorceress fire", "skilltab", "+3 to Fire Skills (Sorceress Only)", "sorceress-Fire"},
+		{"sorceress lightning", "skilltab", "+3 to Lightning Skills (Sorceress Only)", "sorceress-Lightning"},
+		{"sorceress cold", "skilltab", "+3 to Cold Skills (Sorceress Only)", "sorceress-Cold"},
+		{"necromancer curses", "skilltab", "+2 to Curses (Necromancer Only)", "necromancer-Curses"},
+		{"necromancer poison and bone", "skilltab", "+3 to Poison and Bone Skills (Necromancer Only)", "necromancer-Poison and Bone"},
+		{"necromancer summoning", "skilltab", "+2 to Summoning Skills (Necromancer Only)", "necromancer-Summoning"},
+		{"paladin combat skills", "skilltab", "+3 to Combat Skills (Paladin Only)", "paladin-Combat Skills"},
+		{"paladin offensive auras", "skilltab", "+2 to Offensive Auras (Paladin Only)", "paladin-Offensive Auras"},
+		{"paladin defensive auras", "skilltab", "+1 to Defensive Auras (Paladin Only)", "paladin-Defensive Auras"},
+		{"barbarian combat skills", "skilltab", "+3 to Combat Skills (Barbarian Only)", "barbarian-Combat Skills"},
+		{"barbarian combat masteries", "skilltab", "+2 to Combat Masteries (Barbarian Only)", "barbarian-Combat Masteries"},
+		{"barbarian warcries", "skilltab", "+3 to Warcries (Barbarian Only)", "barbarian-Warcries"},
+		{"druid summoning", "skilltab", "+2 to Summoning Skills (Druid Only)", "druid-Summoning"},
+		{"druid shape shifting", "skilltab", "+3 to Shape Shifting Skills (Druid Only)", "druid-Shape Shifting"},
+		{"druid elemental", "skilltab", "+3 to Elemental Skills (Druid Only)", "druid-Elemental"},
+		{"assassin traps", "skilltab", "+3 to Traps (Assassin Only)", "assassin-Traps"},
+		{"assassin shadow disciplines", "skilltab", "+2 to Shadow Disciplines (Assassin Only)", "assassin-Shadow Disciplines"},
+		{"assassin martial arts", "skilltab", "+3 to Martial Arts (Assassin Only)", "assassin-Martial Arts"},
+		{"warlock eldritch", "skilltab", "+2 to Eldritch Skills (Warlock Only)", "warlock-Eldritch"},
+		{"warlock demon", "skilltab", "+3 to Demon Skills (Warlock Only)", "warlock-Demon"},
+		{"warlock chaos", "skilltab", "+1 to Chaos Skills (Warlock Only)", "warlock-Chaos"},
+
+		// Disambiguation: Combat Skills (Paladin vs Barbarian)
+		{"combat skills paladin not barbarian", "skilltab", "+2 to Combat Skills (Paladin Only)", "paladin-Combat Skills"},
+		{"combat skills barbarian not paladin", "skilltab", "+2 to Combat Skills (Barbarian Only)", "barbarian-Combat Skills"},
+
+		// Disambiguation: Summoning Skills (Necromancer vs Druid)
+		{"summoning necromancer not druid", "skilltab", "+1 to Summoning Skills (Necromancer Only)", "necromancer-Summoning"},
+		{"summoning druid not necromancer", "skilltab", "+1 to Summoning Skills (Druid Only)", "druid-Summoning"},
+
+		// Edge cases
+		{"non-skilltab code returns empty", "fcr", "+20% Faster Cast Rate", ""},
+		{"empty code returns empty", "", "", ""},
+		{"all skills is not a skilltab", "skilltab", "+2 to All Skills", ""},
+		{"empty display text returns empty", "skilltab", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := InferSemanticStatCode(tt.code, tt.displayText)
+			if got != tt.expected {
+				t.Errorf("InferSemanticStatCode(%q, %q) = %q, want %q", tt.code, tt.displayText, got, tt.expected)
 			}
 		})
 	}

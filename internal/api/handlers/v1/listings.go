@@ -76,14 +76,17 @@ func (h *ListingHandler) Search(c *fiber.Ctx) error {
 	// Apply pagination defaults/bounds
 	pag := dto.Pagination{Page: req.Page, PerPage: req.PerPage}
 
-	// Convert affix filters
+	// Convert affix filters (zero means "no filter" / unbounded)
 	var affixFilters []repository.AffixFilter
 	for _, f := range req.AffixFilters {
-		affixFilters = append(affixFilters, repository.AffixFilter{
-			Code:     f.Code,
-			MinValue: f.MinValue,
-			MaxValue: f.MaxValue,
-		})
+		af := repository.AffixFilter{Code: f.Code}
+		if f.MinValue != nil && *f.MinValue != 0 {
+			af.MinValue = f.MinValue
+		}
+		if f.MaxValue != nil && *f.MaxValue != 0 {
+			af.MaxValue = f.MaxValue
+		}
+		affixFilters = append(affixFilters, af)
 	}
 
 	// Convert asking_for filter

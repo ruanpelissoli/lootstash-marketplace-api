@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/api/dto"
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/cache"
+	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/games/d2"
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/logger"
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/models"
 	"github.com/ruanpelissoli/lootstash-marketplace-api/internal/repository"
@@ -626,7 +627,7 @@ func (s *StashService) BulkImportPreview(ctx context.Context, userID string, fil
 						ItemType:     fallback.ItemType,
 						Rarity:       fallback.Rarity,
 						Category:     fallback.Category,
-						Stats:        fallback.Stats,
+						Stats:        normalizeStatCodes(fallback.Stats),
 						BaseItemCode: fallback.BaseItemCode,
 						BaseItemName: fallback.BaseItemName,
 						Quantity:     identification.Quantity,
@@ -645,6 +646,9 @@ func (s *StashService) BulkImportPreview(ctx context.Context, userID string, fil
 				if visionErr == nil && visionResult.Stats != nil {
 					parsed.Stats = annotateWithCatalogRanges(visionResult.Stats, parsed.Stats)
 				}
+
+				// Normalize any remaining Vision-guessed codes (e.g. "skilltab" → semantic)
+				parsed.Stats = normalizeStatCodes(parsed.Stats)
 
 				// Superior, magic, and rare items: all stats are variable
 				if parsed.Rarity == "superior" || parsed.Rarity == "magic" || parsed.Rarity == "rare" {
@@ -690,7 +694,7 @@ func (s *StashService) BulkImportPreview(ctx context.Context, userID string, fil
 				ItemType:     result.ItemType,
 				Rarity:       result.Rarity,
 				Category:     result.Category,
-				Stats:        result.Stats,
+				Stats:        normalizeStatCodes(result.Stats),
 				BaseItemCode: result.BaseItemCode,
 				BaseItemName: result.BaseItemName,
 				ImageURL:     imageURL,
@@ -829,7 +833,7 @@ func (s *StashService) parseMagicRareItem(ctx context.Context, imageData []byte,
 		ItemType:     result.ItemType,
 		Rarity:       result.Rarity,
 		Category:     result.Category,
-		Stats:        markAllStatsVariable(result.Stats),
+		Stats:        markAllStatsVariable(normalizeStatCodes(result.Stats)),
 		BaseItemCode: result.BaseItemCode,
 		BaseItemName: result.BaseItemName,
 		Quantity:     identification.Quantity,
@@ -842,43 +846,60 @@ func (s *StashService) parseMagicRareItem(ctx context.Context, imageData []byte,
 		baseName = result.ItemType // fallback: Vision's itemType is often the base name
 	}
 	if baseName != "" && s.catalogClient != nil {
-		searchResp, err := s.catalogClient.Search(ctx, baseName)
-		if err == nil && len(searchResp.Items) > 0 {
-			for _, item := range searchResp.Items {
-				if strings.EqualFold(item.Type, "Base") {
-					// Use catalog category/subcategory for accurate mapping
-					parsed.Category = resolveCategory(item.Category, item.Subcategory)
-					parsed.CatalogItemID = item.ID.String()
-					parsed.CatalogType = "base"
-					if item.ImageURL != "" {
-						parsed.ImageURL = item.ImageURL
+		baseItem := s.findBaseItem(ctx, baseName)
+		// Fallback: if baseName didn't match and result.ItemType is different, try that
+		if baseItem == nil && result.ItemType != "" && !strings.EqualFold(baseName, result.ItemType) {
+			baseItem = s.findBaseItem(ctx, result.ItemType)
+		}
+		if baseItem != nil {
+			parsed.Category = resolveCategory(baseItem.Category, baseItem.Subcategory)
+			parsed.CatalogItemID = baseItem.ID.String()
+			parsed.CatalogType = "base"
+			if baseItem.ImageURL != "" {
+				parsed.ImageURL = baseItem.ImageURL
+			}
+			// Fetch full base detail for code
+			baseDetail, err := s.catalogClient.GetItemDetail(ctx, "base", baseItem.ID.String())
+			if err == nil {
+				var wrapper map[string]json.RawMessage
+				if json.Unmarshal(baseDetail, &wrapper) == nil {
+					innerData := baseDetail
+					if bd, ok := wrapper["base"]; ok {
+						innerData = bd
 					}
-					// Fetch full base detail for code
-					baseDetail, err := s.catalogClient.GetItemDetail(ctx, "base", item.ID.String())
-					if err == nil {
-						var wrapper map[string]json.RawMessage
-						if json.Unmarshal(baseDetail, &wrapper) == nil {
-							innerData := baseDetail
-							if bd, ok := wrapper["base"]; ok {
-								innerData = bd
-							}
-							var base catalogBaseDetail
-							if json.Unmarshal(innerData, &base) == nil {
-								parsed.BaseItemCode = base.Code
-								parsed.BaseItemName = base.Name
-								parsed.ItemType = base.Name
-							}
-						}
+					var base catalogBaseDetail
+					if json.Unmarshal(innerData, &base) == nil {
+						parsed.BaseItemCode = base.Code
+						parsed.BaseItemName = base.Name
+						parsed.ItemType = base.Name
 					}
-					break
 				}
 			}
-		} else if err != nil {
-			log.Warn("failed to look up base item for magic/rare", "baseName", baseName, "error", err.Error())
+		} else {
+			log.Warn("no base item found for magic/rare icon",
+				"baseName", baseName,
+				"itemType", result.ItemType,
+				"name", identification.Name,
+			)
 		}
 	}
 
 	return parsed, nil
+}
+
+// findBaseItem searches the catalog for a base item by name, using type=base filter.
+func (s *StashService) findBaseItem(ctx context.Context, query string) *CatalogSearchResult {
+	searchResp, err := s.catalogClient.SearchBases(ctx, query)
+	if err != nil {
+		logger.FromContext(ctx).Warn("failed to look up base item", "query", query, "error", err.Error())
+		return nil
+	}
+	for i, item := range searchResp.Items {
+		if strings.EqualFold(item.Type, "Base") {
+			return &searchResp.Items[i]
+		}
+	}
+	return nil
 }
 
 // resolveSocketedItems looks up socketed rune/gem names in the catalog and populates the Runes field
@@ -960,16 +981,18 @@ func annotateWithCatalogRanges(visionStats json.RawMessage, catalogStats json.Ra
 		}
 
 		for i := range vision {
-			// 1. Try case-insensitive code match
+			// 1. Try case-insensitive code match — also adopt catalog's authoritative code
 			if cat, ok := catalogByCode[strings.ToLower(vision[i].Code)]; ok {
+				vision[i].Code = cat.Code
 				vision[i].IsVariable = cat.IsVariable
 				vision[i].Min = cat.Min
 				vision[i].Max = cat.Max
 				continue
 			}
 
-			// 2. Fallback: match by display text keyword overlap
+			// 2. Fallback: match by display text keyword overlap — adopt catalog code + ranges
 			if cat := matchByDisplayText(vision[i].DisplayText, catalog); cat != nil {
+				vision[i].Code = cat.Code
 				vision[i].IsVariable = cat.IsVariable
 				vision[i].Min = cat.Min
 				vision[i].Max = cat.Max
@@ -1034,6 +1057,34 @@ func markAllStatsVariable(stats json.RawMessage) json.RawMessage {
 	}
 	for i := range entries {
 		entries[i].IsVariable = true
+	}
+	data, err := json.Marshal(entries)
+	if err != nil {
+		return stats
+	}
+	return data
+}
+
+// normalizeStatCodes scans a stats JSON array and replaces Vision-guessed codes
+// with their semantic equivalents. For "skilltab" entries, infers the semantic code
+// from displayText via d2.InferSemanticStatCode. No-op for non-skilltab codes.
+func normalizeStatCodes(stats json.RawMessage) json.RawMessage {
+	if stats == nil {
+		return nil
+	}
+	var entries []catalogStatEntry
+	if err := json.Unmarshal(stats, &entries); err != nil {
+		return stats
+	}
+	changed := false
+	for i := range entries {
+		if semantic := d2.InferSemanticStatCode(entries[i].Code, entries[i].DisplayText); semantic != "" {
+			entries[i].Code = semantic
+			changed = true
+		}
+	}
+	if !changed {
+		return stats
 	}
 	data, err := json.Marshal(entries)
 	if err != nil {

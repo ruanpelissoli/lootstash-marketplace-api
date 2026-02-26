@@ -234,36 +234,7 @@ func (r *listingRepository) applyFilters(query *bun.SelectQuery, filter ListingF
 }
 
 func (r *listingRepository) applyAffixFilter(query *bun.SelectQuery, af AffixFilter) *bun.SelectQuery {
-	// Check if this is a skill tree code that needs param matching
-	// Items store skill tree bonuses as {code: "skilltab", param: "N", value: X}
-	if skillTabParam := d2.GetSkillTabParam(af.Code); skillTabParam != "" {
-		// Skill tree filter: match code="skilltab" AND param=N
-		if af.MinValue != nil && af.MaxValue != nil {
-			query = query.Where(
-				"EXISTS (SELECT 1 FROM jsonb_array_elements(l.stats) elem WHERE elem->>'code' = 'skilltab' AND elem->>'param' = ? AND (elem->>'value')::int >= ? AND (elem->>'value')::int <= ?)",
-				skillTabParam, *af.MinValue, *af.MaxValue,
-			)
-		} else if af.MinValue != nil {
-			query = query.Where(
-				"EXISTS (SELECT 1 FROM jsonb_array_elements(l.stats) elem WHERE elem->>'code' = 'skilltab' AND elem->>'param' = ? AND (elem->>'value')::int >= ?)",
-				skillTabParam, *af.MinValue,
-			)
-		} else if af.MaxValue != nil {
-			query = query.Where(
-				"EXISTS (SELECT 1 FROM jsonb_array_elements(l.stats) elem WHERE elem->>'code' = 'skilltab' AND elem->>'param' = ? AND (elem->>'value')::int <= ?)",
-				skillTabParam, *af.MaxValue,
-			)
-		} else {
-			// Just check if the skill tree exists
-			query = query.Where(
-				"EXISTS (SELECT 1 FROM jsonb_array_elements(l.stats) elem WHERE elem->>'code' = 'skilltab' AND elem->>'param' = ?)",
-				skillTabParam,
-			)
-		}
-		return query
-	}
-
-	// Standard stat filters: use the normalized listing_stats table for better performance
+	// All stat filters use the normalized listing_stats table
 	codes := d2.ExpandStatCode(af.Code)
 
 	subq := r.db.DB().NewSelect().

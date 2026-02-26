@@ -440,11 +440,7 @@ func (s *ListingService) List(ctx context.Context, req *dto.ListingFilterRequest
 		var dtoFilters []dto.AffixFilter
 		if json.Unmarshal([]byte(req.AffixFilters), &dtoFilters) == nil {
 			for _, f := range dtoFilters {
-				affixFilters = append(affixFilters, repository.AffixFilter{
-					Code:     f.Code,
-					MinValue: f.MinValue,
-					MaxValue: f.MaxValue,
-				})
+				affixFilters = append(affixFilters, toRepoAffixFilter(f))
 			}
 		}
 	}
@@ -837,6 +833,19 @@ func getRecentFromCache(redis *cache.RedisClient, ctx context.Context, key strin
 	}
 
 	return results, nil
+}
+
+// toRepoAffixFilter converts a DTO AffixFilter to a repository AffixFilter,
+// treating zero values as "no filter" (the frontend sends 0 to mean unbounded).
+func toRepoAffixFilter(f dto.AffixFilter) repository.AffixFilter {
+	af := repository.AffixFilter{Code: f.Code}
+	if f.MinValue != nil && *f.MinValue != 0 {
+		af.MinValue = f.MinValue
+	}
+	if f.MaxValue != nil && *f.MaxValue != 0 {
+		af.MaxValue = f.MaxValue
+	}
+	return af
 }
 
 // parsePlatforms splits a comma-separated platform string into a slice

@@ -105,7 +105,21 @@ For Normal/Superior base items: return just the base item name WITHOUT the "Supe
 Return ONLY a JSON object with:
 - "name": the EXACT item name as displayed on screen. For unique/set items: the unique/set name shown in gold/green text (e.g. "Harlequin Crest", "Sling", "Nagelring"). For runewords: the runeword name shown in gold at the top (e.g. "Spirit", "Enigma"), NOT the rune sequence. For runes/gems: the full name (e.g. "Ber Rune", "Perfect Amethyst"). For magic/rare items: the full displayed name (e.g. "Fine Small Charm of Vita"). For base items: the base name WITHOUT "Superior" prefix (e.g. "Giant Thresher", not "Superior Giant Thresher").
 - "typeHint": one of "unique", "set", "runeword", "rune", "gem", "base", "magic", "rare". MUST match the name text color as described above.
-- "baseName": the base item type. Required for runewords (e.g. "Monarch", "Mage Plate"), magic items (e.g. "Small Charm"), and rare items (e.g. "Ring"). Null for unique/set/rune/gem.
+- "baseName": the base item type shown in grey/white text below the item name in the tooltip.
+  Required for runewords, magic items, and rare items.
+
+  For magic items: the base type WITHOUT any magic prefixes/suffixes.
+  Examples: "Small Charm", "Grand Charm", "Large Charm", "Ring", "Amulet", "Jewel",
+  "Monarch", "Breast Plate", "Dusk Shroud", "Archon Plate", "Mage Plate",
+  "Crystal Sword", "Phase Blade", "Berserker Axe", "Tiara", "Diadem",
+  "Shako", "Bone Visage", "Corona", "Sacred Armor", "Wire Fleece"
+
+  For rare items: same — extract just the base item type from the grey text.
+  Examples: "Ring", "Amulet", "Circlet", "Tiara", "Diadem", "War Belt",
+  "Chain Boots", "Light Gauntlets", "Bone Helm", "Ancient Armor"
+
+  For runewords: the base item shown below the runeword name (e.g. "Monarch", "Mage Plate").
+  Null for unique/set/rune/gem.
 - "sockets": if the item has visible socketed runes or gems, list their names (e.g. ["Ber Rune", "Perfect Diamond"]). Empty array if none.
 - "quantity": number of items shown (default 1, may be higher for runes/gems shown in stacks)
 Return ONLY the JSON object, no other text.`,
@@ -225,7 +239,13 @@ Return a JSON object with:
 - "category": one of "helms", "body armor", "weapons", "shields", "gloves", "boots", "belts", "amulets", "rings", "charms", "jewels", "runes", "gems", "misc"
 - "stats": array of ONLY the blue magical property lines, in screenshot order, each as:
   {"code": "stat_code", "value": number, "displayText": "exact blue text line as shown"}
-  Use standard D2 stat codes (e.g. "ac%" for Enhanced Defense, "str" for Strength, "res-all" for All Resistances, "fcr" for Faster Cast Rate, "fhr" for Faster Hit Recovery, "skilltab" for skill bonuses)
+  Use standard D2 stat codes: "ac%" (Enhanced Defense), "str", "dex", "vit", "ene",
+  "life", "mana", "res-all", "res-fire", "res-cold", "res-ltng", "res-pois",
+  "fcr" (Faster Cast Rate), "fhr" (Faster Hit Recovery), "ias" (Attack Speed),
+  "frw" (Run/Walk), "mag%" (Magic Find), "gold%" (Gold Find),
+  "dmg%" (Enhanced Damage), "lifesteal", "manasteal",
+  "crush" (Crushing Blow), "deadly" (Deadly Strike), "openwounds",
+  "skilltab" (skill tree bonuses), "ethereal"
   If the item is ethereal, append the ethereal stat entry as described above.
 - "baseItemCode": the D2 base item code if known (e.g. "uap" for Shako)
 - "baseItemName": the base item name (e.g. "War Hat")

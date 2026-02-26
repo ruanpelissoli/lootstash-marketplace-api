@@ -1,5 +1,7 @@
 package d2
 
+import "strings"
+
 // statCodeAliases maps canonical (user-friendly) codes to all game data variants.
 // This allows filtering to work with either the simplified frontend codes or
 // the raw game data codes from catalog-api.
@@ -33,6 +35,40 @@ var statCodeAliases = map[string][]string{
 	"crushing_blow": {"crush"},
 	"deadly_strike": {"deadly"},
 	"open_wounds":   {"openwounds"},
+
+	// Skill tree backward compat (semantic code → old "skilltab-N" format)
+	// Amazon
+	"amazon-Bow and Crossbow":  {"skilltab-0"},
+	"amazon-Passive and Magic": {"skilltab-1"},
+	"amazon-Javelin and Spear": {"skilltab-2"},
+	// Sorceress
+	"sorceress-Fire":      {"skilltab-3"},
+	"sorceress-Lightning": {"skilltab-4"},
+	"sorceress-Cold":      {"skilltab-5"},
+	// Necromancer
+	"necromancer-Curses":          {"skilltab-6"},
+	"necromancer-Poison and Bone": {"skilltab-7"},
+	"necromancer-Summoning":       {"skilltab-8"},
+	// Paladin
+	"paladin-Combat Skills":    {"skilltab-9"},
+	"paladin-Offensive Auras":  {"skilltab-10"},
+	"paladin-Defensive Auras":  {"skilltab-11"},
+	// Barbarian
+	"barbarian-Combat Skills":    {"skilltab-12"},
+	"barbarian-Combat Masteries": {"skilltab-13"},
+	"barbarian-Warcries":         {"skilltab-14"},
+	// Druid
+	"druid-Summoning":     {"skilltab-15"},
+	"druid-Shape Shifting": {"skilltab-16"},
+	"druid-Elemental":     {"skilltab-17"},
+	// Assassin
+	"assassin-Traps":             {"skilltab-18"},
+	"assassin-Shadow Disciplines": {"skilltab-19"},
+	"assassin-Martial Arts":      {"skilltab-20"},
+	// Warlock
+	"warlock-Eldritch": {"skilltab-21"},
+	"warlock-Demon":    {"skilltab-22"},
+	"warlock-Chaos":    {"skilltab-23"},
 }
 
 // reverseAliases maps game codes back to canonical codes
@@ -79,43 +115,67 @@ func NormalizeStatCode(code string) string {
 	return code // Unknown, return as-is
 }
 
-// skillTabMappings maps semantic skill tree codes to skilltab param values.
-// Items store skill tree bonuses as {code: "skilltab", param: "N", value: X}
-// where N is the tab number (0-20). This mapping allows filtering by
-// user-friendly codes like "sor-fire" instead of raw param values.
-var skillTabMappings = map[string]string{
+// skillTabMapping maps display text keywords to semantic stat codes for all 24 D2 skill tabs.
+// Each entry contains keywords that must ALL appear in the display text for a match,
+// enabling disambiguation of overlapping names (e.g. Combat Skills → Paladin vs Barbarian).
+var skillTabMapping = []struct {
+	code     string
+	keywords []string
+}{
 	// Amazon
-	"ama-bow":     "0",
-	"ama-passive": "1",
-	"ama-javelin": "2",
+	{"amazon-Bow and Crossbow", []string{"bow", "crossbow"}},
+	{"amazon-Passive and Magic", []string{"passive", "magic"}},
+	{"amazon-Javelin and Spear", []string{"javelin", "spear"}},
 	// Sorceress
-	"sor-fire":      "3",
-	"sor-lightning": "4",
-	"sor-cold":      "5",
+	{"sorceress-Fire", []string{"fire", "sorceress"}},
+	{"sorceress-Lightning", []string{"lightning", "sorceress"}},
+	{"sorceress-Cold", []string{"cold", "sorceress"}},
 	// Necromancer
-	"nec-curses":     "6",
-	"nec-poisonbone": "7",
-	"nec-summon":     "8",
+	{"necromancer-Curses", []string{"curses"}},
+	{"necromancer-Poison and Bone", []string{"poison", "bone"}},
+	{"necromancer-Summoning", []string{"summoning", "necromancer"}},
 	// Paladin
-	"pal-combat":    "9",
-	"pal-offensive": "10",
-	"pal-defensive": "11",
-	// Barbarian
-	"bar-combat":    "12",
-	"bar-masteries": "13",
-	"bar-warcries":  "14",
+	{"paladin-Combat Skills", []string{"combat", "paladin"}},
+	{"paladin-Offensive Auras", []string{"offensive", "auras"}},
+	{"paladin-Defensive Auras", []string{"defensive", "auras"}},
+	// Barbarian (Combat Masteries must precede Combat Skills to avoid false match on "combat"+"barbarian")
+	{"barbarian-Combat Masteries", []string{"masteries"}},
+	{"barbarian-Combat Skills", []string{"combat", "barbarian"}},
+	{"barbarian-Warcries", []string{"warcries"}},
 	// Druid
-	"dru-summon":       "15",
-	"dru-shapeshifting": "16",
-	"dru-elemental":    "17",
+	{"druid-Summoning", []string{"summoning", "druid"}},
+	{"druid-Shape Shifting", []string{"shape", "shifting"}},
+	{"druid-Elemental", []string{"elemental"}},
 	// Assassin
-	"ass-traps":   "18",
-	"ass-shadow":  "19",
-	"ass-martial": "20",
+	{"assassin-Traps", []string{"traps"}},
+	{"assassin-Shadow Disciplines", []string{"shadow", "disciplines"}},
+	{"assassin-Martial Arts", []string{"martial", "arts"}},
+	// Warlock
+	{"warlock-Eldritch", []string{"eldritch"}},
+	{"warlock-Demon", []string{"demon"}},
+	{"warlock-Chaos", []string{"chaos"}},
 }
 
-// GetSkillTabParam returns the skilltab param value if code is a skill tree code,
-// or empty string if it's not a skill tree code.
-func GetSkillTabParam(code string) string {
-	return skillTabMappings[code]
+// InferSemanticStatCode maps a "skilltab" stat's displayText to its semantic code.
+// Returns empty string if no match found.
+// Example: "skilltab" + "+3 to Lightning Skills (Sorceress Only)" → "sorceress-Lightning"
+func InferSemanticStatCode(code string, displayText string) string {
+	if code != "skilltab" {
+		return ""
+	}
+	lower := strings.ToLower(displayText)
+	for _, entry := range skillTabMapping {
+		allMatch := true
+		for _, kw := range entry.keywords {
+			if !strings.Contains(lower, kw) {
+				allMatch = false
+				break
+			}
+		}
+		if allMatch {
+			return entry.code
+		}
+	}
+	return ""
 }
+
