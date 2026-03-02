@@ -623,6 +623,16 @@ func (s *StashService) BulkImportPreview(ctx context.Context, userID string, fil
 						}}
 						return
 					}
+					// Upload screenshot so the fallback item gets an image URL
+					var fbImageURL string
+					if s.storage != nil {
+						path := fmt.Sprintf("stash/%s/%s-%s", userID, uuid.New().String(), fh.Filename)
+						url, uploadErr := s.storage.UploadImage(ctx, path, data, ct)
+						if uploadErr == nil {
+							fbImageURL = url
+						}
+					}
+
 					fbParsed := dto.ParsedStashItem{
 						ItemType:     fallback.ItemType,
 						Rarity:       fallback.Rarity,
@@ -632,10 +642,22 @@ func (s *StashService) BulkImportPreview(ctx context.Context, userID string, fil
 						BaseItemName: fallback.BaseItemName,
 						Quantity:     identification.Quantity,
 						IsStackable:  fallback.IsStackable,
+						ImageURL:     fbImageURL,
 					}
-					if fallback.Name != "" {
+
+					// Prefer identification.Name (from IdentifyItem, tuned for name accuracy)
+					// over fallback.Name (from ParseItemScreenshot, which often returns empty)
+					if identification.Name != "" {
+						fbParsed.Name = identification.Name
+					} else if fallback.Name != "" {
 						fbParsed.Name = fallback.Name
 					}
+
+					// Apply type hint as rarity when available (IdentifyItem is reliable for rarity)
+					if identification.TypeHint != "" {
+						fbParsed.Rarity = identification.TypeHint
+					}
+
 					results[idx] = fileResult{item: &fbParsed}
 					return
 				}
@@ -828,10 +850,17 @@ func (s *StashService) parseMagicRareItem(ctx context.Context, imageData []byte,
 		name = result.Name
 	}
 
+	// Use identification.TypeHint for rarity — IdentifyItem is purpose-built for
+	// color/rarity detection, while ParseItemScreenshot can misclassify (e.g. rare as magic).
+	rarity := identification.TypeHint
+	if rarity == "" {
+		rarity = result.Rarity
+	}
+
 	parsed := &dto.ParsedStashItem{
 		Name:         name,
 		ItemType:     result.ItemType,
-		Rarity:       result.Rarity,
+		Rarity:       rarity,
 		Category:     result.Category,
 		Stats:        markAllStatsVariable(normalizeStatCodes(result.Stats)),
 		BaseItemCode: result.BaseItemCode,
@@ -888,12 +917,28 @@ func (s *StashService) parseMagicRareItem(ctx context.Context, imageData []byte,
 }
 
 // findBaseItem searches the catalog for a base item by name, using type=base filter.
+// Uses exact match first, then normalized name matching, then falls back to first Base result.
 func (s *StashService) findBaseItem(ctx context.Context, query string) *CatalogSearchResult {
 	searchResp, err := s.catalogClient.SearchBases(ctx, query)
 	if err != nil {
 		logger.FromContext(ctx).Warn("failed to look up base item", "query", query, "error", err.Error())
 		return nil
 	}
+
+	// Exact name match (preferred)
+	for i, item := range searchResp.Items {
+		if strings.EqualFold(item.Type, "Base") && strings.EqualFold(item.Name, query) {
+			return &searchResp.Items[i]
+		}
+	}
+	// Normalized name match (handles punctuation variants)
+	normQuery := normalizeName(query)
+	for i, item := range searchResp.Items {
+		if strings.EqualFold(item.Type, "Base") && normalizeName(item.Name) == normQuery {
+			return &searchResp.Items[i]
+		}
+	}
+	// Fallback: first Base result (search API already filtered by query relevance)
 	for i, item := range searchResp.Items {
 		if strings.EqualFold(item.Type, "Base") {
 			return &searchResp.Items[i]
@@ -944,8 +989,61 @@ func findBestMatch(items []CatalogSearchResult, name string, typeHint string) (C
 			return item, true
 		}
 	}
+	// Normalized name + type match (handles apostrophe/dash/whitespace variants)
+	normName := normalizeName(name)
+	for _, item := range items {
+		if normalizeName(item.Name) == normName && strings.EqualFold(item.Type, typeHint) {
+			return item, true
+		}
+	}
+	// Normalized name match (any type)
+	for _, item := range items {
+		if normalizeName(item.Name) == normName {
+			return item, true
+		}
+	}
+	// Contains match + type match (catalog may return qualified names like "Rainbow Facet (Die)")
+	for _, item := range items {
+		normItem := normalizeName(item.Name)
+		if strings.EqualFold(item.Type, typeHint) && (strings.Contains(normItem, normName) || strings.Contains(normName, normItem)) {
+			return item, true
+		}
+	}
+	// Single result of matching type (search API returns by relevance — trust the top result)
+	if typeHint != "" {
+		var match *CatalogSearchResult
+		count := 0
+		for i, item := range items {
+			if strings.EqualFold(item.Type, typeHint) {
+				match = &items[i]
+				count++
+			}
+		}
+		if count == 1 {
+			return *match, true
+		}
+	}
 	// No match — do NOT fall back to an unrelated item
 	return CatalogSearchResult{}, false
+}
+
+// normalizeName lowercases and normalizes punctuation variants for fuzzy name matching.
+// Collapses curly/straight apostrophes, various dashes, and extra whitespace.
+func normalizeName(s string) string {
+	s = strings.ToLower(s)
+	// Normalize apostrophe variants (curly ', ', `, ʼ) to straight '
+	for _, ch := range []string{"\u2018", "\u2019", "\u0060", "\u02BC"} {
+		s = strings.ReplaceAll(s, ch, "'")
+	}
+	// Normalize dash variants (en-dash, em-dash, minus) to hyphen
+	for _, ch := range []string{"\u2013", "\u2014", "\u2212"} {
+		s = strings.ReplaceAll(s, ch, "-")
+	}
+	// Collapse multiple spaces
+	for strings.Contains(s, "  ") {
+		s = strings.ReplaceAll(s, "  ", " ")
+	}
+	return strings.TrimSpace(s)
 }
 
 // isStackableCategory returns true if the category represents a stackable item type

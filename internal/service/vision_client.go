@@ -245,7 +245,8 @@ Return a JSON object with:
   "frw" (Run/Walk), "mag%" (Magic Find), "gold%" (Gold Find),
   "dmg%" (Enhanced Damage), "lifesteal", "manasteal",
   "crush" (Crushing Blow), "deadly" (Deadly Strike), "openwounds",
-  "skilltab" (skill tree bonuses), "ethereal"
+  "skilltab" (skill tree bonuses), "sockets" (Socketed), "ethereal"
+  For "sockets": use value = socket count, param = socket count as string (e.g. Socketed (3) → value: 3, "param": "3"), displayText: "Socketed (3)".
   If the item is ethereal, append the ethereal stat entry as described above.
 - "baseItemCode": the D2 base item code if known (e.g. "uap" for Shako)
 - "baseItemName": the base item name (e.g. "War Hat")

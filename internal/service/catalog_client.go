@@ -413,6 +413,7 @@ func (c *CatalogClient) mapBaseDetail(data json.RawMessage, parsed *dto.ParsedSt
 type catalogStatEntry struct {
 	Code        string `json:"code"`
 	Value       *int   `json:"value,omitempty"`
+	Param       string `json:"param,omitempty"`
 	DisplayText string `json:"displayText"`
 	IsVariable  bool   `json:"isVariable"`
 	Min         *int   `json:"min,omitempty"`
