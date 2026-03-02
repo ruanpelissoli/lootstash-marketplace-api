@@ -759,6 +759,7 @@ func (s *StashService) catalogLookup(ctx context.Context, identification *Vision
 	if isSuperior {
 		searchName = strings.TrimPrefix(searchName, "Superior ")
 	}
+	searchName = normalizeSearchQuery(searchName)
 
 	searchResp, err := s.catalogClient.Search(ctx, searchName)
 	if err != nil {
@@ -796,7 +797,7 @@ func (s *StashService) catalogLookup(ctx context.Context, identification *Vision
 
 	// 6. Runeword base item resolution
 	if mappedType == "runeword" && identification.BaseName != "" {
-		baseSearch, err := s.catalogClient.Search(ctx, identification.BaseName)
+		baseSearch, err := s.catalogClient.Search(ctx, normalizeSearchQuery(identification.BaseName))
 		if err == nil && len(baseSearch.Items) > 0 {
 			for _, item := range baseSearch.Items {
 				if strings.EqualFold(item.Type, "Base") {
@@ -919,6 +920,7 @@ func (s *StashService) parseMagicRareItem(ctx context.Context, imageData []byte,
 // findBaseItem searches the catalog for a base item by name, using type=base filter.
 // Uses exact match first, then normalized name matching, then falls back to first Base result.
 func (s *StashService) findBaseItem(ctx context.Context, query string) *CatalogSearchResult {
+	query = normalizeSearchQuery(query)
 	searchResp, err := s.catalogClient.SearchBases(ctx, query)
 	if err != nil {
 		logger.FromContext(ctx).Warn("failed to look up base item", "query", query, "error", err.Error())
@@ -1044,6 +1046,20 @@ func normalizeName(s string) string {
 		s = strings.ReplaceAll(s, "  ", " ")
 	}
 	return strings.TrimSpace(s)
+}
+
+// normalizeSearchQuery normalizes punctuation in search queries without lowercasing,
+// so catalog API searches work even when Vision returns curly apostrophes or fancy dashes.
+func normalizeSearchQuery(s string) string {
+	// Curly apostrophes → straight
+	for _, ch := range []string{"\u2018", "\u2019", "\u0060", "\u02BC"} {
+		s = strings.ReplaceAll(s, ch, "'")
+	}
+	// Dash variants → hyphen
+	for _, ch := range []string{"\u2013", "\u2014", "\u2212"} {
+		s = strings.ReplaceAll(s, ch, "-")
+	}
+	return s
 }
 
 // isStackableCategory returns true if the category represents a stackable item type

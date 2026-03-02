@@ -89,8 +89,8 @@ CRITICAL - Item rarity is determined by the NAME TEXT COLOR:
 - Gold/tan text = Unique (e.g. "Harlequin Crest", "Nagelring", "Sling")
 - Green text = Set (e.g. "Tal Rasha's Horadric Crest")
 - Gold text with rune sequence below = Runeword (e.g. "Spirit", "Enigma")
-- Yellow text = Rare (random two-word name like "Eagle Mark", "Blood Knot")
-- Blue text = Magic (random name like "Fine Small Charm of Vita")
+- Yellow text = Rare. Rare names are ALWAYS exactly two invented words (e.g. "Viper Badge", "Havoc Heart", "Eagle Mark", "Blood Knot", "Storm Wing", "Doom Finger", "Raven Clasp"). They never have prefixes like "Fine" or suffixes like "of Vita".
+- Blue text = Magic. Magic names follow prefix/suffix patterns (e.g. "Fine Small Charm of Vita", "Godly Plate of the Whale", "Chromatic Boots of Speed"). They contain the base item name with added modifiers.
 - White/grey text = Normal/Superior base item
 
 CRITICAL - DO NOT CONFUSE "Ethereal" WITH "Eth Rune":
