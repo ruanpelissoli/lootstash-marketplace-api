@@ -204,6 +204,39 @@ func (c *CatalogClient) SearchBases(ctx context.Context, query string) (*Catalog
 	return &result, nil
 }
 
+// SearchByType queries the catalog API for items matching the given query filtered by type
+func (c *CatalogClient) SearchByType(ctx context.Context, query string, itemType string) (*CatalogSearchResponse, error) {
+	u := fmt.Sprintf("%s/api/v1/d2/items/search?q=%s&limit=5&type=%s",
+		c.baseURL, url.QueryEscape(query), url.QueryEscape(itemType))
+
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create catalog search request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("catalog search request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read catalog search response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("catalog search returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result CatalogSearchResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse catalog search response: %w", err)
+	}
+
+	return &result, nil
+}
+
 // GetItemDetail fetches the full detail for an item from the catalog
 func (c *CatalogClient) GetItemDetail(ctx context.Context, itemType string, id string) (json.RawMessage, error) {
 	u := fmt.Sprintf("%s/api/v1/d2/items/%s/%s", c.baseURL, url.PathEscape(itemType), url.PathEscape(id))

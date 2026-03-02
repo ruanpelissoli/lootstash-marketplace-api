@@ -607,11 +607,18 @@ func (s *StashService) BulkImportPreview(ctx context.Context, userID string, fil
 					return
 				}
 
+				// Normalize identification names early so all downstream uses get clean versions
+				identification.Name = normalizeSearchQuery(identification.Name)
+				if identification.BaseName != "" {
+					identification.BaseName = normalizeSearchQuery(identification.BaseName)
+				}
+
 				parsed, err := s.catalogLookup(ctx, identification)
 				if err != nil {
 					// Catalog has no match — fall back to full Vision parse
 					log.Warn("catalog lookup failed, falling back to vision",
 						"name", identification.Name,
+						"typeHint", identification.TypeHint,
 						"error", err.Error(),
 					)
 					fallback, fbErr := s.visionClient.ParseItemScreenshot(ctx, data, ct)
@@ -761,10 +768,34 @@ func (s *StashService) catalogLookup(ctx context.Context, identification *Vision
 	}
 	searchName = normalizeSearchQuery(searchName)
 
-	searchResp, err := s.catalogClient.Search(ctx, searchName)
-	if err != nil {
-		return nil, fmt.Errorf("catalog search failed: %w", err)
+	// Try type-filtered search first for better precision when typeHint is known
+	var searchResp *CatalogSearchResponse
+	var err error
+	if identification.TypeHint != "" {
+		searchResp, err = s.catalogClient.SearchByType(ctx, searchName, identification.TypeHint)
+		if err != nil {
+			log.Warn("type-filtered catalog search failed, trying unfiltered",
+				"name", searchName, "type", identification.TypeHint, "error", err.Error())
+		}
 	}
+
+	// Fall back to unfiltered search if type-filtered returned nothing
+	if searchResp == nil || len(searchResp.Items) == 0 {
+		searchResp, err = s.catalogClient.Search(ctx, searchName)
+		if err != nil {
+			return nil, fmt.Errorf("catalog search failed: %w", err)
+		}
+	}
+
+	// Retry without apostrophes if no results (some search APIs strip possessives)
+	if len(searchResp.Items) == 0 && strings.Contains(searchName, "'") {
+		stripped := strings.ReplaceAll(searchName, "'", "")
+		searchResp, err = s.catalogClient.Search(ctx, stripped)
+		if err != nil {
+			return nil, fmt.Errorf("catalog search failed (stripped apostrophes): %w", err)
+		}
+	}
+
 	if len(searchResp.Items) == 0 {
 		return nil, fmt.Errorf("no catalog results for: %s", searchName)
 	}
