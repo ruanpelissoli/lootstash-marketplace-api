@@ -760,6 +760,15 @@ func (s *StashService) BulkImportPreview(ctx context.Context, userID string, fil
 func (s *StashService) catalogLookup(ctx context.Context, identification *VisionIdentification) (*dto.ParsedStashItem, error) {
 	log := logger.FromContext(ctx)
 
+	// For set items: use prefix-based search + base type matching (more robust than exact name)
+	if identification.TypeHint == "set" {
+		if parsed, err := s.catalogLookupSetItem(ctx, identification); err == nil {
+			return parsed, nil
+		} else {
+			log.Warn("set-specific lookup failed, falling back to generic", "name", identification.Name, "error", err.Error())
+		}
+	}
+
 	// 1. Strip "Superior " prefix from base items before searching catalog
 	searchName := identification.Name
 	isSuperior := strings.HasPrefix(searchName, "Superior ")
@@ -1091,6 +1100,71 @@ func normalizeSearchQuery(s string) string {
 		s = strings.ReplaceAll(s, ch, "-")
 	}
 	return s
+}
+
+// extractSetPrefix strips the possessive item name from a set item name, returning just the set prefix.
+// "Tal Rasha's Adjudication" → "Tal Rasha"
+// "Bul-Kathos' Wedding Band" → "Bul-Kathos"
+// Falls back to the full name if no possessive found.
+func extractSetPrefix(name string) string {
+	// Normalize apostrophe variants first
+	normalized := normalizeName(name)
+	if i := strings.Index(normalized, "'s "); i >= 0 {
+		return name[:i]
+	}
+	if i := strings.Index(normalized, "' "); i >= 0 {
+		return name[:i]
+	}
+	return name
+}
+
+// catalogLookupSetItem looks up a set item using prefix-based search and base-type disambiguation.
+// This is more robust than exact-name search because set item names contain possessives that
+// are prone to encoding variants and catalog mismatches.
+func (s *StashService) catalogLookupSetItem(ctx context.Context, identification *VisionIdentification) (*dto.ParsedStashItem, error) {
+	// 1. Extract set prefix: "Tal Rasha's Adjudication" → "Tal Rasha"
+	prefix := extractSetPrefix(identification.Name)
+	searchQuery := normalizeSearchQuery(prefix)
+
+	// 2. Search catalog with prefix, type=set, limit=20
+	searchResp, err := s.catalogClient.SearchSetPieces(ctx, searchQuery)
+	if err != nil || len(searchResp.Items) == 0 {
+		return nil, fmt.Errorf("no set items found for prefix %q: %v", prefix, err)
+	}
+
+	// 3. Match by base item type (primary strategy)
+	var best *CatalogSearchResult
+	if identification.BaseName != "" {
+		normalizedBase := normalizeName(identification.BaseName)
+		for i, item := range searchResp.Items {
+			if normalizeName(item.BaseName) == normalizedBase {
+				best = &searchResp.Items[i]
+				break
+			}
+		}
+	}
+
+	// 4. Fallback: exact full name match within results
+	if best == nil {
+		normFull := normalizeName(identification.Name)
+		for i, item := range searchResp.Items {
+			if normalizeName(item.Name) == normFull {
+				best = &searchResp.Items[i]
+				break
+			}
+		}
+	}
+
+	if best == nil {
+		return nil, fmt.Errorf("no set piece matched for %q (base: %q)", identification.Name, identification.BaseName)
+	}
+
+	// 5. Fetch full detail + map
+	detail, err := s.catalogClient.GetItemDetail(ctx, "set", best.ID.String())
+	if err != nil {
+		return nil, fmt.Errorf("catalog detail fetch failed: %w", err)
+	}
+	return s.catalogClient.mapDetailToParsedItem("set", detail, *best)
 }
 
 // isStackableCategory returns true if the category represents a stackable item type
