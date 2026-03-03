@@ -28,7 +28,7 @@ var serveCmd = &cobra.Command{
 The server exposes REST endpoints for trading operations.
 
 Public Endpoints:
-  GET /health                          - Health check
+  GET /healthz                         - Health check
   GET /api/v1/listings                 - List/filter listings
   GET /api/v1/listings/:id             - Get listing details
   GET /api/v1/profiles/:id             - Get user profile
@@ -93,10 +93,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 		log.Error("failed to connect to database", "error", err)
 		return err
 	}
-	defer func() {
-		log.Info("closing database connection")
-		db.Close()
-	}()
 	log.Info("connected to database")
 
 	// Connect to Redis (optional - app works without it)
@@ -106,10 +102,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 		log.Warn("redis unavailable, running without cache", "error", err)
 		redisClient = nil
 	} else {
-		defer func() {
-			log.Info("closing redis connection")
-			redisClient.Close()
-		}()
 		log.Info("connected to redis", "address", GetRedisURL())
 	}
 
@@ -179,29 +171,37 @@ func runServe(cmd *cobra.Command, args []string) error {
 	// Create and start server
 	server := api.NewServer(db, redisClient, avatarStorage, stashStorage, config)
 
-	// Handle graceful shutdown
-	shutdown := make(chan os.Signal, 1)
-	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		sig := <-shutdown
-		log.Info("received shutdown signal", "signal", sig.String())
-		log.Info("shutting down server gracefully")
-		if err := server.Shutdown(); err != nil {
-			log.Error("error during shutdown", "error", err)
-		}
-		log.Info("server shutdown complete")
-	}()
-
 	log.Info("starting http server",
 		"port", port,
 		"allowed_origins", allowedOrigins,
 	)
 
-	if err := server.Start(); err != nil {
-		log.Error("server error", "error", err)
-		return err
+	go func() {
+		if err := server.Start(); err != nil {
+			log.Error("server error", "error", err)
+		}
+	}()
+
+	// Block until interrupt signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	sig := <-quit
+
+	log.Info("received shutdown signal", "signal", sig.String())
+	log.Info("shutting down server gracefully")
+
+	if err := server.Shutdown(); err != nil {
+		log.Error("error during shutdown", "error", err)
 	}
 
+	log.Info("closing database connection")
+	db.Close()
+
+	if redisClient != nil {
+		log.Info("closing redis connection")
+		redisClient.Close()
+	}
+
+	log.Info("server exited cleanly")
 	return nil
 }

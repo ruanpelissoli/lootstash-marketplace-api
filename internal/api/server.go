@@ -256,10 +256,39 @@ func (s *Server) setupRoutes() {
 	activityTracker := middleware.ActivityTracker(profileRepo, s.redis)
 
 	// Health check
-	s.app.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{
-			"status":  "ok",
+	s.app.Get("/healthz", func(c *fiber.Ctx) error {
+		ctx := context.Background()
+
+		checks := fiber.Map{}
+		overall := "ok"
+
+		if err := s.db.Ping(ctx); err != nil {
+			checks["database"] = "error"
+			overall = "error"
+		} else {
+			checks["database"] = "ok"
+		}
+
+		if s.redis == nil {
+			checks["redis"] = "unavailable"
+		} else if err := s.redis.Ping(ctx); err != nil {
+			checks["redis"] = "degraded"
+			if overall == "ok" {
+				overall = "degraded"
+			}
+		} else {
+			checks["redis"] = "ok"
+		}
+
+		status := fiber.StatusOK
+		if overall == "error" {
+			status = fiber.StatusServiceUnavailable
+		}
+
+		return c.Status(status).JSON(fiber.Map{
+			"status":  overall,
 			"service": "lootstash-marketplace-api",
+			"checks":  checks,
 		})
 	})
 
@@ -440,7 +469,7 @@ func (s *Server) Start() error {
 	return s.app.Listen(addr)
 }
 
-// Shutdown gracefully shuts down the server
+// Shutdown gracefully shuts down the server with a 30s timeout
 func (s *Server) Shutdown() error {
-	return s.app.Shutdown()
+	return s.app.ShutdownWithTimeout(30 * time.Second)
 }

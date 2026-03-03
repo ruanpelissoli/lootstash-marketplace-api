@@ -74,6 +74,11 @@ func (b *BunDB) DB() *bun.DB {
 	return b.db
 }
 
+// Ping checks the database connectivity
+func (b *BunDB) Ping(ctx context.Context) error {
+	return b.db.PingContext(ctx)
+}
+
 // Close closes the database connection
 func (b *BunDB) Close() error {
 	return b.db.Close()

@@ -37,6 +37,14 @@ func NewRedisClient(ctx context.Context, redisURL string) (*RedisClient, error) 
 	return &RedisClient{client: client}, nil
 }
 
+// Ping checks the Redis connectivity
+func (r *RedisClient) Ping(ctx context.Context) error {
+	if r == nil || r.client == nil {
+		return fmt.Errorf("redis client not initialized")
+	}
+	return r.client.Ping(ctx).Err()
+}
+
 // IsAvailable returns true if the Redis client is connected
 func (r *RedisClient) IsAvailable() bool {
 	return r != nil && r.client != nil
