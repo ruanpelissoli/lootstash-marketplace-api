@@ -6,34 +6,36 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 // S3Storage handles file uploads to S3-compatible storage (Supabase Storage S3 protocol)
 type S3Storage struct {
-	client     *s3.S3
+	client     *s3.Client
 	bucketName string
 	publicURL  string // Base URL for public access
 }
 
 // NewS3Storage creates a new S3-compatible storage client for Supabase
 func NewS3Storage(endpoint, accessKey, secretKey, region, bucketName, publicURL string) (*S3Storage, error) {
-	// Create AWS session with custom endpoint
-	sess, err := session.NewSession(&aws.Config{
-		Endpoint:         aws.String(endpoint),
-		Region:           aws.String(region),
-		Credentials:      credentials.NewStaticCredentials(accessKey, secretKey, ""),
-		S3ForcePathStyle: aws.Bool(true), // Required for S3-compatible services
-	})
+	cfg, err := config.LoadDefaultConfig(context.Background(),
+		config.WithRegion(region),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create S3 session: %w", err)
+		return nil, fmt.Errorf("failed to create S3 config: %w", err)
 	}
 
+	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.UsePathStyle = true
+		o.BaseEndpoint = aws.String(endpoint)
+	})
+
 	return &S3Storage{
-		client:     s3.New(sess),
+		client:     client,
 		bucketName: bucketName,
 		publicURL:  strings.TrimSuffix(publicURL, "/"),
 	}, nil
@@ -48,7 +50,7 @@ func (s *S3Storage) UploadImage(ctx context.Context, path string, data []byte, c
 		ContentType: aws.String(contentType),
 	}
 
-	_, err := s.client.PutObjectWithContext(ctx, input)
+	_, err := s.client.PutObject(ctx, input)
 	if err != nil {
 		return "", fmt.Errorf("failed to upload to S3: %w", err)
 	}
@@ -63,7 +65,7 @@ func (s *S3Storage) GetPublicURL(path string) string {
 
 // FileExists checks if a file exists in the bucket
 func (s *S3Storage) FileExists(ctx context.Context, path string) (bool, error) {
-	_, err := s.client.HeadObjectWithContext(ctx, &s3.HeadObjectInput{
+	_, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(s.bucketName),
 		Key:    aws.String(path),
 	})

@@ -337,8 +337,8 @@ func TestListingUpdate_InvalidatesCache(t *testing.T) {
 	// Pre-set cache keys
 	listingKey := cache.ListingKey(testListingID)
 	dtoKey := cache.ListingDTOKey(testListingID)
-	mr.Set(listingKey, `{"id":"test"}`)
-	mr.Set(dtoKey, `{"id":"test"}`)
+	_ = mr.Set(listingKey, `{"id":"test"}`)
+	_ = mr.Set(dtoKey, `{"id":"test"}`)
 
 	newNotes := "Updated notes"
 	req := &dto.UpdateListingRequest{

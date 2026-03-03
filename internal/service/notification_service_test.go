@@ -59,7 +59,7 @@ func TestCountUnread_CacheHit(t *testing.T) {
 	// Pre-set value in miniredis
 	cacheKey := cache.NotificationCountKey(userID)
 	data, _ := json.Marshal(cachedCount)
-	mr.Set(cacheKey, string(data))
+	_ = mr.Set(cacheKey, string(data))
 
 	count, err := svc.CountUnread(ctx, userID)
 	assert.NoError(t, err)

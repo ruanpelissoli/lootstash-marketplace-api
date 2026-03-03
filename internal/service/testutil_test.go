@@ -209,10 +209,6 @@ func withTradeSeller(seller *models.Profile) func(*models.Trade) {
 	return func(t *models.Trade) { t.Seller = seller }
 }
 
-func withTradeBuyer(buyer *models.Profile) func(*models.Trade) {
-	return func(t *models.Trade) { t.Buyer = buyer }
-}
-
 func withTradeChat(chat *models.Chat) func(*models.Trade) {
 	return func(t *models.Trade) { t.Chat = chat }
 }
@@ -264,17 +260,6 @@ func testRating(id, transactionID, raterID, ratedID string, stars int) *models.R
 		RatedID:       ratedID,
 		Stars:         stars,
 		CreatedAt:     time.Now(),
-	}
-}
-
-// testNotification creates a test notification.
-func testNotification(id, userID string, ntype models.NotificationType) *models.Notification {
-	return &models.Notification{
-		ID:        id,
-		UserID:    userID,
-		Type:      ntype,
-		Title:     "Test Notification",
-		CreatedAt: time.Now(),
 	}
 }
 
@@ -391,10 +376,6 @@ func withStashCategory(cat string) func(*models.StashItem) {
 
 func withStashQuantity(qty int) func(*models.StashItem) {
 	return func(si *models.StashItem) { si.Quantity = qty }
-}
-
-func withStashSource(src string) func(*models.StashItem) {
-	return func(si *models.StashItem) { si.Source = src }
 }
 
 func withStashItemType(itemType string) func(*models.StashItem) {
