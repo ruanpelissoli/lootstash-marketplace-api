@@ -119,7 +119,9 @@ Return ONLY a JSON object with:
   "Chain Boots", "Light Gauntlets", "Bone Helm", "Ancient Armor"
 
   For runewords: the base item shown below the runeword name (e.g. "Monarch", "Mage Plate").
-  Null for unique/set/rune/gem.
+  Required for set items: the base item type shown in grey text below the set name.
+  Examples: "Amulet", "Sacred Armor", "Bone Helm", "Dusk Shroud", "Archon Plate"
+  Null for unique/rune/gem.
 - "sockets": if the item has visible socketed runes or gems, list their names (e.g. ["Ber Rune", "Perfect Diamond"]). Empty array if none.
 - "quantity": number of items shown (default 1, may be higher for runes/gems shown in stacks)
 Return ONLY the JSON object, no other text.`,
