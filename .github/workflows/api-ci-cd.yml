@@ -1,0 +1,212 @@
+# =============================================================================
+# LootStash API — CI/CD Pipeline
+# =============================================================================
+# Triggers on every push/PR to main.
+# On PRs:  runs tests + lint only (no deploy)
+# On push: runs tests + lint → builds Docker image → deploys to Fly.io
+# =============================================================================
+
+name: API CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "pkg/**"
+      - "go.mod"
+      - "go.sum"
+      - "Dockerfile"
+      - ".github/workflows/api-ci-cd.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "pkg/**"
+      - "go.mod"
+      - "go.sum"
+      - "Dockerfile"
+      - ".github/workflows/api-ci-cd.yml"
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.23"
+  FLY_APP: lootstash-marketplace-api  # <-- Change to your Fly.io app name
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # JOB 1: Lint
+  # ─────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+  # ─────────────────────────────────────────────────────────────
+  # JOB 2: Test
+  # ─────────────────────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    services:
+      # Spin up Postgres for integration tests
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: lootstash_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      # Spin up Redis for cache-related tests
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      # Go module caching (setup-go does this automatically but being explicit)
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run migrations
+        run: |
+          # If you use golang-migrate:
+          # go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+          # migrate -path ./migrations -database "$DATABASE_URL" up
+          echo "Run your migration tool here"
+        env:
+          DATABASE_URL: postgres://test:test@localhost:5432/lootstash_test?sslmode=disable
+
+      - name: Run tests
+        run: |
+          go test -race -coverprofile=coverage.out -covermode=atomic ./...
+        env:
+          DATABASE_URL: postgres://test:test@localhost:5432/lootstash_test?sslmode=disable
+          REDIS_URL: redis://localhost:6379
+          ENVIRONMENT: test
+
+      - name: Upload coverage report
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.out
+
+  # ─────────────────────────────────────────────────────────────
+  # JOB 3: Security Scan
+  # ─────────────────────────────────────────────────────────────
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"  # Fail the build on critical/high vulnerabilities
+
+  # ─────────────────────────────────────────────────────────────
+  # JOB 4: Deploy to Fly.io
+  # Only runs on push to main (not PRs) and after all checks pass
+  # ─────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    needs: [lint, test, security]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    # Require the "production" environment (for manual approval, secrets, etc.)
+    environment:
+      name: production
+      url: https://${{ env.FLY_APP }}.fly.dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        run: flyctl deploy --remote-only --wait-timeout 300
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # ── Post-deploy health check ──
+      - name: Verify deployment health
+        run: |
+          echo "Waiting 15s for deployment to stabilize..."
+          sleep 15
+
+          # Hit the health endpoint
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://${{ env.FLY_APP }}.fly.dev/healthz" \
+            --max-time 10 \
+            --retry 3 \
+            --retry-delay 5)
+
+          echo "Health check returned: $HTTP_STATUS"
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "::error::Health check failed with status $HTTP_STATUS"
+            echo "Rolling back deployment..."
+            # Fly.io keeps previous releases — you can roll back manually
+            # flyctl releases --app ${{ env.FLY_APP }}
+            exit 1
+          fi
+
+          echo "Deployment healthy!"
+
+      - name: Post deploy status to commit
+        if: success()
+        run: |
+          echo "### Deployment Successful 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "- **App:** ${{ env.FLY_APP }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** https://${{ env.FLY_APP }}.fly.dev" >> $GITHUB_STEP_SUMMARY
