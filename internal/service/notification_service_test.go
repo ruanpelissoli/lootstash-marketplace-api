@@ -101,7 +101,7 @@ func TestMarkAsRead_InvalidatesCache(t *testing.T) {
 
 	// Pre-set count in cache
 	cacheKey := cache.NotificationCountKey(userID)
-	mr.Set(cacheKey, "5")
+	_ = mr.Set(cacheKey, "5")
 
 	// Verify it exists
 	assert.True(t, mr.Exists(cacheKey))
@@ -162,7 +162,7 @@ func TestNotificationCreate_InvalidatesCountCache(t *testing.T) {
 
 	// Pre-set count in cache
 	cacheKey := cache.NotificationCountKey(testUserID)
-	mr.Set(cacheKey, "10")
+	_ = mr.Set(cacheKey, "10")
 	assert.True(t, mr.Exists(cacheKey))
 
 	notification := &models.Notification{

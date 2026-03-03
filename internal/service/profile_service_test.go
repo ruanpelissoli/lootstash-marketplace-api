@@ -104,7 +104,7 @@ func TestProfileGetByID_CacheHit(t *testing.T) {
 	// Pre-populate miniredis with cached profile JSON
 	data, err := json.Marshal(profile)
 	assert.NoError(t, err)
-	mr.Set(cache.ProfileKey(testUserID), string(data))
+	_ = mr.Set(cache.ProfileKey(testUserID), string(data))
 
 	result, err := svc.GetByID(ctx, testUserID)
 	assert.NoError(t, err)
@@ -246,9 +246,9 @@ func TestProfileUpdate_InvalidatesAllCaches(t *testing.T) {
 	profile := testProfile(testUserID)
 
 	// Pre-set all cache keys
-	mr.Set(cache.ProfileKey(testUserID), "cached")
-	mr.Set(cache.ProfileDTOKey(testUserID), "cached")
-	mr.Set(cache.ProfileUsernameKey(profile.Username), "cached")
+	_ = mr.Set(cache.ProfileKey(testUserID), "cached")
+	_ = mr.Set(cache.ProfileDTOKey(testUserID), "cached")
+	_ = mr.Set(cache.ProfileUsernameKey(profile.Username), "cached")
 
 	// Verify they all exist
 	assert.True(t, mr.Exists(cache.ProfileKey(testUserID)))

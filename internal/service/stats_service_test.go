@@ -85,7 +85,7 @@ func TestGetMarketplaceStats_ReturnsFromCache(t *testing.T) {
 	assert.NoError(t, err)
 
 	cacheKey := cache.HomeStatsKey()
-	mr.Set(cacheKey, string(data))
+	_ = mr.Set(cacheKey, string(data))
 
 	result, err := svc.GetMarketplaceStats(context.Background())
 	assert.NoError(t, err)
@@ -122,7 +122,7 @@ func TestGetMarketplaceStats_CacheCorrupted_FallsBackToDB(t *testing.T) {
 
 	// Pre-populate cache with invalid JSON
 	cacheKey := cache.HomeStatsKey()
-	mr.Set(cacheKey, "not-valid-json")
+	_ = mr.Set(cacheKey, "not-valid-json")
 
 	repoStats := &repository.MarketplaceStats{
 		ActiveListings:         75,
@@ -244,7 +244,7 @@ func TestRefreshHomeStats_OverwritesExistingCache(t *testing.T) {
 		TradesToday:    2,
 	}
 	data, _ := json.Marshal(oldData)
-	mr.Set("home:stats", string(data))
+	_ = mr.Set("home:stats", string(data))
 
 	// Set up repo to return new data
 	repoStats := &repository.MarketplaceStats{
